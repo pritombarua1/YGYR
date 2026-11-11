@@ -1,4 +1,4 @@
-/* Paper Plane Challenge
+/* Paper Plane Contest
    Sports-day noticeboard on squared exercise paper, with airmail trim.
    Sheets are taped up, names are luggage tags, passes are boarding passes. */
 
@@ -4342,4 +4342,28 @@ textarea {
   letter-spacing: 0.05em;
   font-size: 0.95em;
   color: var(--red);
+}
+
+.host-pin.closed {
+  background: var(--red);
+}
+
+.setup-warn {
+  color: var(--red);
+  font-weight: 600;
+  max-width: 34em;
+}
+
+.save-result {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.member-throws {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 12px;
+  white-space: normal;
 }

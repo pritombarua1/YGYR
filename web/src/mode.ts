@@ -20,8 +20,8 @@ export const phasesFor = (s: Cfg): Phase[] => ["lobby", "rules", ...(["distance"
 
 export const PHASE_LABEL: Record<Phase, string> = { lobby: "Lobby", rules: "Rules", distance: "Distance", bin: "Bin", winners: "Winners" };
 
-/** "Round 1" / "Round 2" with two challenges; "The challenge" when there's only one. */
-export const roundKicker = (s: Cfg, r: Round) => (s.rounds.length > 1 ? `Round ${s.rounds.indexOf(r) + 1}` : "The challenge");
+/** "Round 1" / "Round 2" with two rounds; "The contest" when there's only one. */
+export const roundKicker = (s: Cfg, r: Round) => (s.rounds.length > 1 ? `Round ${s.rounds.indexOf(r) + 1}` : "The contest");
 export const roundTitle = (s: Cfg, r: Round) => (s.rounds.length > 1 ? `${roundKicker(s, r)}: ${PHASE_LABEL[r]}` : PHASE_LABEL[r]);
 
 /** Has this entry thrown in every round that's on? */

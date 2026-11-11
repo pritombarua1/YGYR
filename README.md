@@ -2,7 +2,7 @@
 
 **Run your own live contest: your rules, your challenges, your branding.** Players join from their phones with a QR code, the big screen runs the show, and one phone controls everything. No logins for players, no paid services.
 
-The first game is the **Paper Plane Challenge** (Deakin College, Atrium, 3–4pm): fold a plane, throw it, see who flies the furthest. Prizes for 1st, 2nd and 3rd, snacks for everyone who takes part, teams or individuals welcome.
+The first game is the **Paper Plane Contest** (Deakin College, in association with Deakin University: Wednesday 11 November, 3–4pm, in the Atrium): fold a plane, throw it, see who flies the furthest. Snacks and materials provided, prizes for 1st, 2nd and 3rd, teams or individuals welcome. The event name, host and date line are in `web/src/config.ts`.
 
 Coming later: build any contest with your own rules, content, theme and branding, and host it yourself.
 
@@ -25,7 +25,7 @@ YGYR is free and open for anyone: use it, copy it, change it, run your own event
 | `/control` | the host's phone | **Runs everything**: steps, rules, calling pilots, metres, bin hits, Skip / Not here, Edit, Undo, the reveal, settings. Its **Guide** button shows this README. Needs the PIN + host password |
 | `/guide` | anyone | This README, readable on a phone |
 | `/join` | players | What the QR opens. Name → pass with an ID like **Pilot-07** and a rejoin code. Then (optional) start a team or ask to join one |
-| `/results` | everyone | All players and their points, searchable. Opens after the last winner is revealed (QR on the big screen) |
+| `/results` | everyone | Everyone's results, searchable (a team-mate's name finds their team, and team rows show each member's throw). Opens after the last winner is revealed (QR on the big screen) |
 
 The event name and "hosted by" line are in `web/src/config.ts`.
 
@@ -35,11 +35,11 @@ worker/   Worker + one Durable Object per game PIN (holds state, pushes updates 
 scripts/  start.mjs, used by start.bat
 ```
 
-## Challenges and teams
+## Rounds and teams
 
 Set these on the **Create game** screen. You can change them in the control **Menu** until the first round starts; after that they're locked.
 
-**Challenges.** Tick **Longest throw**, **Bin throw** or both. At least one has to be ticked. The rules slides, the steps on the big screen, Next/Back and the scores all follow what you pick.
+**Rounds.** Tick **Longest throw**, **Bin throw** or both. At least one has to be ticked. The rules slides, the steps on the big screen, Next/Back and the scores all follow what you pick.
 
 | Ticked | How it's scored |
 |---|---|
@@ -68,8 +68,8 @@ Every place (1st, 2nd, 3rd …) is one entry: a solo pilot **or** a team.
 | Who takes the place | What they get |
 |---|---|
 | A solo pilot | The prize for that place |
-| A team, set to **One prize, shared** (default) | One prize for the place, shared by the team |
-| A team, set to **A prize each** | One prize for every member of the team |
+| A team, set to **One prize, shared** (default) | One prize for the place, shared by the team. The total is always one per place: 3 winners = 3 prizes |
+| A team, set to **A prize each** | One prize for every member of the team. This can add up fast: 3 winning teams of 3 = 9 prizes. The picker shows the worst case, so have enough ready or stay on "shared" |
 
 Choose it when creating the game (**If a team wins**), or change it any time in the control **Menu**, even during the event. The rules slide says which it is, the podium card says "1 prize, shared by 3" or "3 prizes (one each)", and the control phone's winners list shows **how many prizes to hand out**. Everyone in a winning team gets the celebration on their phone. Everyone who took part gets a thank-you, not a "you lost" message, and snacks are for everyone.
 
@@ -123,7 +123,8 @@ The bottom of the control phone always has **← Back** and **Next →**, labell
 | Someone's in the wrong team, or the captain isn't answering | **Edit** the player → **Team**: move them in or out (no captain's OK needed), or start a new team |
 | A team needs renaming or splitting up | Control Lobby → **Teams** → **Edit** → rename, or **Break up team** (everyone keeps their own throws) |
 | Teams only, but someone has no team | The control Lobby lists them. **Edit** them → pick a team |
-| Wrong challenges picked | Control **Menu → Challenges and teams**, any time before the first round starts |
+| Wrong rounds picked | Control **Menu → Rounds and teams**, any time before the first round starts |
+| Someone wants to join during the winners | Entries close while the podium is up (the late-join QR is replaced by "Entries closed"). Going **Back** to a round reopens them. People who already joined still get their pass back |
 | Pressed Next too early | **Back**. Nothing is lost |
 | Revealed too early | **Hide and start the reveal again** |
 | Tie for a winning place | Throw-off box on the control phone |
@@ -148,6 +149,19 @@ The bottom of the control phone always has **← Back** and **Next →**, labell
 ## Sounds
 
 Short sound effects live in `web/public/sfx/` (`up`, `next`, `land`, `bin`, `whoosh`, `tear`, `drumroll`, `reveal`, `fanfare`, `pop`, `cheer`). Replace any `.mp3` to change it. If a file is missing, a built-in synthesised version plays instead. Phones have a sound on/off button; the big screen's is in its corner Menu. There's no background music track.
+
+## How it looks when people join, then team up
+
+Everyone joins as themselves first (a **Pilot-07** pass), then optionally teams up. From that moment:
+
+| Where | What you see |
+|---|---|
+| Lobby wall (big screen) | Each person keeps their own name tag, in join order; a team-mate's tag gets the team name under it |
+| Player's phone | Their own pass and own throw, plus the team card (members, captain, requests). Points and rank are the **team's** |
+| Control phone | "Everyone" lists people (with their team), and **Teams** lists teams with members and waiting requests (both searchable) |
+| During a round | Team-mates are called one after another; the big screen shows the whole team in formation |
+| Leaderboard, podium, results | The team is **one entry** (its average), with member names. A team-mate never also appears as a solo entry |
+| After the reveal | Every phone gets **📸 Save my result photo**: a ready-to-post picture with their name, place (or "I took part!"), team and throw |
 
 ## Fair play and limits
 

@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions
-title YGYR - Paper Plane Challenge
+title YGYR - Paper Plane Contest
 cd /d "%~dp0"
 
 rem ==========================================================================

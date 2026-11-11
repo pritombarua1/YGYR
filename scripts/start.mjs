@@ -300,7 +300,7 @@ if (!cloudflared) {
       console.log(`  Got ${url} - waiting for it to come online...`);
       await waitFor(url, 60);
       banner([
-        "PAPER PLANE CHALLENGE IS LIVE",
+        "PAPER PLANE CONTEST IS LIVE",
         "",
         "Host screen (opening in your browser now):",
         `  ${url}/host`,

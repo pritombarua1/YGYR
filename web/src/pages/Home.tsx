@@ -10,7 +10,7 @@ export default function Home() {
       <main className="phone-main">
         <header className="phone-hero">
           <Plane size={120} className="hero-plane" />
-          <h1 className="display">Paper Plane Challenge</h1>
+          <h1 className="display">{EVENT.title}</h1>
           <p className="hand">Fold it. Throw it. Bin it.</p>
           <p className="hosted">Hosted by {EVENT.hostedBy}</p>
         </header>

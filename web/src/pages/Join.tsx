@@ -17,6 +17,7 @@ import { RoundIntro, usePhaseTransition } from "../components/RoundIntro";
 import { BinDrop, useBinDrops } from "../components/BinDrop";
 import { Confetti } from "../components/Confetti";
 import { Plane } from "../components/Plane";
+import { SaveResult } from "../components/SaveResult";
 import Home from "./Home";
 
 export default function Join() {
@@ -103,12 +104,23 @@ function JoinGame({ pin }: { pin: string }) {
     <Shell>
       <header className="phone-hero">
         <Plane size={110} className="hero-plane" />
-        <h1 className="display">Paper Plane Challenge</h1>
+        <h1 className="display">{EVENT.title}</h1>
         <p className="hand">Gate {pin} · boarding now</p>
         <p className="hosted">Hosted by {EVENT.hostedBy}</p>
       </header>
       {me === undefined ? (
         <p className="hand center-note">Checking in…</p>
+      ) : state?.phase === "winners" && !askCode ? (
+        <div className="sheet taped msg">
+          <h2 className="display">Entries are closed</h2>
+          <p>The winners are being announced right now. Thanks for coming! Snacks are for everyone.</p>
+          <a className="btn" href={`/results?pin=${pin}`}>
+            See the results
+          </a>
+          <button type="button" className="link foot-link" onClick={() => setAskCode(true)}>
+            Already joined on another phone? Get your pass back
+          </button>
+        </div>
       ) : (
         <form className="sheet taped form" onSubmit={join}>
           {notice && <p className="notice">{notice}</p>}
@@ -260,7 +272,7 @@ function PlayerPass({ state, me, online, code, send }: { state: GameState; me: s
       <main className="phone-main">
         <section className="pass" aria-label="Your boarding pass">
           <div className="pass-main">
-            <span className="pass-label">Boarding pass · Paper Plane Challenge</span>
+            <span className="pass-label">Boarding pass · {EVENT.title}</span>
             <span className="pass-k">Passenger</span>
             <strong className="pass-name">{person.name}</strong>
             {crew && <span className="pass-team">Team {crew.name}</span>}
@@ -346,9 +358,12 @@ function PlayerPass({ state, me, online, code, send }: { state: GameState; me: s
         {(state.phase === "bin" || drops.length > 0) && <BinDrop drops={drops} small points={mode === "both" ? SCORING.binPoints : null} />}
 
         {allRevealed && (
-          <a className="btn red" href={`/results?pin=${state.pin}`}>
-            See full results
-          </a>
+          <>
+            <SaveResult state={state} me={me} />
+            <a className="btn red" href={`/results?pin=${state.pin}`}>
+              See everyone's results
+            </a>
+          </>
         )}
 
         <button className="link foot-link sound-toggle" onClick={toggleSound}>

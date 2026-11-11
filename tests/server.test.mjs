@@ -289,8 +289,28 @@ async function fairPlay() {
   await check(() => admin.state.players.length === count && !big.id, "oversized message ignored");
 }
 
+async function entriesClose() {
+  section("Entries close during the winners reveal");
+  const pin = await newGame({ rounds: ["distance"], entries: "both", teamMax: 3 });
+  const host = await control(pin);
+  const P = await players(pin, ["Ann"]);
+  host.send({ t: "phase", phase: "winners", from: "lobby" });
+  await check(() => host.state.phase === "winners", "on to the winners");
+  const late = await client(pin, null);
+  late.send({ t: "join", name: "Latecomer", device: "dev-late-xxxxxxxxxxxx" });
+  await check(() => late.msgs.some((m) => m.t === "error" && m.closed), "new players refused while the winners are shown");
+  const back = await client(pin, null);
+  back.send({ t: "join", name: "Ann", device: `dev-Ann-${pin}-xxxxxxxx` });
+  await check(() => back.id === P.Ann.id, "someone who already joined still gets their pass back");
+  host.send({ t: "phase", phase: "distance", from: "winners" });
+  await check(() => host.state.phase === "distance", "host goes back to the round");
+  late.send({ t: "join", name: "Latecomer", device: "dev-late-xxxxxxxxxxxx" });
+  await check(() => late.id, "entries open again");
+}
+
 try {
   await modes();
+  await entriesClose();
   await teams("both");
   await teams("teams");
   await teamEdges();

@@ -72,7 +72,7 @@ export type ServerMsg =
   | { t: "state"; state: GameState }
   | { t: "you"; id: string | null; token?: string; code?: string }
   | { t: "host"; ok: boolean; key?: string; ctrlKey?: string; ctrlId?: string; admin?: boolean; reason?: string }
-  | { t: "error"; message: string; taken?: boolean }
+  | { t: "error"; message: string; taken?: boolean; closed?: boolean }
   | { t: "removed"; reason?: "reset" }
   | { t: "nogame" }
   | { t: "stale" }; // a step change that arrived after the event had already moved on (ignored)

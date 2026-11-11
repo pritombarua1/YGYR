@@ -173,7 +173,7 @@ function Splash({ onReady, toast, flash }: { onReady: (c: Creds) => void; toast:
               <small>3 to 10, you can change it later</small>
             </div>
           )}
-          {mode === "create" && <SetupPicker value={setup} onChange={setSetup} />}
+          {mode === "create" && <SetupPicker value={setup} onChange={setSetup} winners={winners} />}
           <button className="btn red big" disabled={busy}>
             {busy ? "Opening the gate…" : mode === "create" ? "Create game" : "Resume game"}
           </button>
@@ -270,9 +270,9 @@ function Display({
         <div className="brand">
           <Plane size={58} />
           <span>
-            Paper Plane
+            {EVENT.title.replace(/ (\S+)$/, "")}
             <br />
-            Challenge
+            {EVENT.title.split(" ").slice(-1)[0]}
             <small>Hosted by {EVENT.hostedBy}</small>
           </span>
         </div>
@@ -281,6 +281,11 @@ function Display({
           <div className="host-pin">
             <span>PIN</span>
             <strong>{state.pin}</strong>
+          </div>
+        ) : state.phase === "winners" ? (
+          <div className="host-pin closed" aria-label="Entries closed">
+            <span>Entries</span>
+            <strong>closed</strong>
           </div>
         ) : (
           <CornerJoin pin={state.pin} />

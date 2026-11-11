@@ -348,6 +348,8 @@ export class Game extends DurableObject<Env> {
             : `"${name}" is already on board. If that's you, enter your rejoin code. If not, add an initial.`,
         });
       }
+      // Entries close while the winners are announced (rejoining above still works); going back reopens them.
+      if (g.phase === "winners") return this.send(ws, { t: "error", closed: true, message: "Entries are closed: the winners are being announced. Thanks for coming!" });
       if (g.players.length >= LIMITS.maxPlayers) return this.error(ws, "This game is full. Ask the host.");
       const now = Date.now();
       const recent = (this.recentJoins.get(tag.net ?? "") ?? []).filter((t) => now - t < LIMITS.joinsWindowMs);
@@ -472,7 +474,7 @@ export class Game extends DurableObject<Env> {
             return this.error(ws, `Teams have started forming, so the team size can only go up (it's ${g.teamMax} now).`);
           // Which challenges run and who can enter: only until the first round starts.
           const changes = want.rounds.join() !== g.rounds!.join() || want.entries !== g.entries;
-          if (changes && g.phase !== "lobby" && g.phase !== "rules") return this.error(ws, "The challenges are locked once the first round has started.");
+          if (changes && g.phase !== "lobby" && g.phase !== "rules") return this.error(ws, "The rounds are locked once the first round has started.");
           if (want.entries === "solo" && g.entries !== "solo") this.dropAllRequests();
           Object.assign(g, want);
           const max = binThrows(g.rounds!);

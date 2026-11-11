@@ -488,7 +488,7 @@ function LobbyPanel({ state, onEdit }: { state: GameState; onEdit: (id: string) 
           duplicate, from the list below.
         </p>
         <p className="setup-sum">{describeSetup(state)}</p>
-        <p className="hint">Change the challenges or teams in Menu (until the first round starts).</p>
+        <p className="hint">Change the rounds or teams in Menu (until the first round starts).</p>
         {state.players.some((p) => p.twin) && (
           <p className="notice">
             {state.players.filter((p) => p.twin).length} passes look like they're from the same phone (marked ⚠ below). Often it's two friends with the same
@@ -889,14 +889,15 @@ function Menu({
           <small>places revealed at the end (3 to 10)</small>
         </div>
 
-        <h3>Challenges and teams</h3>
+        <h3>Rounds and teams</h3>
         <SetupPicker
           value={{ rounds: state.rounds, entries: state.entries, teamMax: state.teamMax, teamPrize: state.teamPrize }}
           locked={state.phase !== "lobby" && state.phase !== "rules"}
           noShrink={state.teams.length > 0}
+          winners={state.winners}
           onChange={(setup) => send({ t: "settings", setup })}
         />
-        {state.phase !== "lobby" && state.phase !== "rules" && <p className="hint">Challenges are locked now the first round has started (team size can still go up).</p>}
+        {state.phase !== "lobby" && state.phase !== "rules" && <p className="hint">Rounds are locked now the first round has started (team size and team prizes can still change).</p>}
 
         {state.canRestore && (
           <>

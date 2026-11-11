@@ -1,7 +1,8 @@
 // Names shown around the app. Change them here.
 export const EVENT = {
-  title: "Paper Plane Challenge",
-  hostedBy: "Deakin Student Committee",
+  title: "Paper Plane Contest",
+  hostedBy: "Deakin College",
+  when: "Wednesday 11 November · 3–4pm · Atrium", // shown on the result photo
 };
 
 export const SCORING = {
@@ -25,4 +26,4 @@ export const DEFAULT_SETUP = {
 };
 
 // Shown on the last rule slide.
-export const PERKS = "Prizes for the top {W}. Snacks for everyone who takes part!";
+export const PERKS = "Prizes for the top {W}. Snacks and materials for everyone who takes part!";

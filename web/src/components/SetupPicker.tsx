@@ -25,11 +25,13 @@ export function SetupPicker({
   onChange,
   locked,
   noShrink,
+  winners = 3,
 }: {
   value: Setup;
   onChange: (s: Setup) => void;
   locked?: boolean; // challenges + who can enter: fixed once the first round starts
   noShrink?: boolean; // teams exist: team size can still grow, never shrink
+  winners?: number; // how many places win: for the prize totals
 }) {
   const toggle = (r: Round) => {
     const on = value.rounds.includes(r);
@@ -44,8 +46,8 @@ export function SetupPicker({
   ];
   return (
     <div className="setup-pick">
-      <span className="setup-k">Challenges</span>
-      <div className="seg" role="group" aria-label="Challenges">
+      <span className="setup-k">Rounds</span>
+      <div className="seg" role="group" aria-label="Rounds">
         {(
           [
             ["distance", "Longest throw"],
@@ -60,7 +62,7 @@ export function SetupPicker({
               aria-pressed={on}
               className={on ? "on" : ""}
               disabled={locked}
-              title={on && value.rounds.length === 1 ? "At least one challenge has to be on" : undefined}
+              title={on && value.rounds.length === 1 ? "At least one round has to be on" : undefined}
               onClick={() => toggle(r)}
             >
               {on ? "✓ " : ""}
@@ -104,11 +106,16 @@ export function SetupPicker({
       {value.entries !== "solo" && (
         <>
           <span className="setup-k">If a team wins</span>
+          {value.teamPrize === "each" && (
+            <small className="setup-warn">
+              Every member of a winning team gets a prize: with {winners} winning teams of {value.teamMax} that's {winners * value.teamMax} prizes. Have enough ready.
+            </small>
+          )}
           <div className="seg" role="radiogroup" aria-label="If a team wins">
             {(
               [
-                ["shared", "One prize, shared"],
-                ["each", "A prize each"],
+                ["shared", `One prize, shared (${winners} prizes)`],
+                ["each", `A prize each (up to ${winners * value.teamMax})`],
               ] as const
             ).map(([k, label]) => (
               <button

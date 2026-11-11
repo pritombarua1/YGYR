@@ -8,6 +8,7 @@ import { EVENT } from "../config";
 import { Search } from "../components/Inputs";
 import { Seal } from "../components/RuleSlides";
 import { useRevealShown, winnersOf } from "../components/Podium";
+import { SaveResult } from "../components/SaveResult";
 
 /**
  * Everyone's results, for anyone to look at (QR on the big screen after the podium).
@@ -62,7 +63,10 @@ export default function Results() {
 
   const winners = winnersOf(scored, state.winners);
   const mine = me ? entryFor(scored, me) : undefined;
-  const rows = scored.filter((s) => matches(s, query));
+  // a team row is found by its own name/ID or by anyone's name in it
+  const rows = scored.filter((s) => matches(s, query) || s.members?.some((m) => matches(m, query)));
+  const own = (m: { distance: number | null; bins: number | null }) =>
+    mode === "bin" ? binText(cfg, m.bins) : mode === "distance" ? (m.distance ? `${m.distance.toFixed(2)} m` : "–") : `${m.distance ? m.distance.toFixed(2) : "–"} m, ${binText(cfg, m.bins)}`;
 
   return shell(
     <>
@@ -76,6 +80,7 @@ export default function Results() {
             {mine.name} · {scoreText(mine, cfg, mode)}
             {mode === "both" && ` (${mine.distPts} distance + ${mine.binPts} bin)`}
           </span>
+          {me && <SaveResult state={state} me={me} />}
         </motion.section>
       )}
 
@@ -127,8 +132,13 @@ export default function Results() {
                   {s.name}
                   <small>
                     {s.id}
-                    {isTeam(s) && ` · ${members(s)}`}
+                    {isTeam(s) && ` · team of ${s.members!.length}`}
                   </small>
+                  {isTeam(s) && (
+                    <small className="member-throws">
+                      {s.members!.map((m) => `${m.name} ${own(m)}`).join(" · ")}
+                    </small>
+                  )}
                 </td>
                 {mode !== "bin" && <td>{s.distance ? `${s.distance.toFixed(2)} m` : "–"}</td>}
                 {mode !== "distance" && <td>{binText(cfg, s.bins)}</td>}
