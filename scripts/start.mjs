@@ -1,0 +1,194 @@
+// Runs the whole event from this laptop:
+//   1. builds the web app
+//   2. starts the game server (Worker + Durable Object, locally)
+//   3. serves the web app on port 4173
+//   4. opens a free Cloudflare quick tunnel so phones can reach it from anywhere
+// Then opens the host screen in the browser. Ctrl+C (or closing the window) stops everything.
+
+import { spawn, execSync, exec } from "node:child_process";
+import { existsSync, writeFileSync } from "node:fs";
+import readline from "node:readline";
+import { networkInterfaces } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const WEB = 5180; // see vite.config.ts
+const API = 8787;
+const isWin = process.platform === "win32";
+const children = [];
+let stopping = false;
+
+function stop(code = 0) {
+  if (stopping) return;
+  stopping = true;
+  for (const c of children) {
+    try {
+      if (isWin) execSync(`taskkill /pid ${c.pid} /T /F`, { stdio: "ignore" });
+      else c.kill();
+    } catch {
+      // already gone
+    }
+  }
+  process.exit(code);
+}
+process.on("SIGINT", () => stop(0));
+process.on("SIGTERM", () => stop(0));
+
+function run(name, command, { quiet = false, onText } = {}) {
+  const child = spawn(command, { cwd: root, shell: true, stdio: ["ignore", "pipe", "pipe"] });
+  children.push(child);
+  const onData = (buf) => {
+    const text = buf.toString();
+    onText?.(text);
+    if (quiet) return;
+    for (const line of text.split(/\r?\n/)) if (line.trim()) console.log(`  [${name}] ${line}`);
+  };
+  child.stdout.on("data", onData);
+  child.stderr.on("data", onData);
+  child.on("exit", (code) => {
+    if (stopping) return;
+    console.log(`\n  [${name}] stopped unexpectedly (code ${code}). Shutting everything down.`);
+    stop(1);
+  });
+  return child;
+}
+
+async function waitFor(url, seconds) {
+  for (let i = 0; i < seconds * 2; i++) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return true;
+    } catch {
+      // not up yet
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return false;
+}
+
+function findCloudflared() {
+  try {
+    execSync(isWin ? "where cloudflared" : "which cloudflared", { stdio: "ignore" });
+    return "cloudflared";
+  } catch {
+    // winget installs here, but the PATH only refreshes in a new window
+    const spots = ["C:\\Program Files (x86)\\cloudflared\\cloudflared.exe", "C:\\Program Files\\cloudflared\\cloudflared.exe"];
+    const hit = spots.find((p) => existsSync(p));
+    return hit ? `"${hit}"` : null;
+  }
+}
+
+function lanAddresses() {
+  return Object.values(networkInterfaces())
+    .flat()
+    .filter((a) => a && a.family === "IPv4" && !a.internal)
+    .map((a) => a.address);
+}
+
+function banner(lines) {
+  const bar = "=".repeat(64);
+  console.log(`\n  ${bar}`);
+  for (const l of lines) console.log(`    ${l}`);
+  console.log(`  ${bar}\n`);
+}
+
+const openBrowser = (url) => {
+  if (!process.env.NO_OPEN) exec(isWin ? `start "" "${url}"` : `open "${url}"`);
+};
+
+/** Asks a question without echoing what's typed (the laptop may already be on the projector). */
+function askHidden(question) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+    rl._writeToOutput = (s) => {
+      if (s.includes(question)) process.stdout.write(s);
+      else if (s !== "\r\n" && s !== "\n") process.stdout.write("*");
+    };
+    rl.question(question, (answer) => {
+      rl.close();
+      process.stdout.write("\n");
+      resolve(answer.trim());
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+
+// The host password protects creating/resuming a game and the control phone.
+let password = "";
+while (!password) {
+  password = await askHidden("\n  Choose a host password for today (for the big screen and the control phone): ");
+  if (!password) console.log("  It can't be empty.");
+  else if (/["\\$`]/.test(password)) {
+    console.log('  Please avoid " \\ $ and ` in the password (letters, numbers and - _ ! are fine).');
+    password = "";
+  }
+}
+// wrangler reads local secrets from worker/.dev.vars (git-ignored).
+writeFileSync(path.join(root, "worker", ".dev.vars"), `HOST_PASSWORD=${JSON.stringify(password)}\n`);
+
+console.log("\n  Building the web app...");
+// Force same-origin API calls, even if web/.env.production points at a deployed Worker.
+execSync("npm run build -w web", { cwd: root, stdio: "inherit", env: { ...process.env, VITE_API_URL: "" } });
+
+console.log("\n  Starting the game server and web server...");
+run("game", `npm run dev -w worker`, { quiet: true });
+run("web", `npx -w web vite preview --host --port ${WEB} --strictPort`, { quiet: true });
+
+if (!(await waitFor(`http://127.0.0.1:${API}/`, 60))) {
+  console.log(`  The game server didn't start. Is something else using port ${API}?`);
+  stop(1);
+}
+if (!(await waitFor(`http://127.0.0.1:${WEB}/`, 30))) {
+  console.log(`  The web server didn't start. Is something else using port ${WEB}?`);
+  stop(1);
+}
+
+const cloudflared = findCloudflared();
+if (!cloudflared) {
+  const lan = lanAddresses().map((ip) => `http://${ip}:${WEB}/host`);
+  banner([
+    "RUNNING ON THIS WI-FI ONLY (cloudflared not found, so no public link)",
+    "",
+    "Host screen - open one of these on this laptop:",
+    ...lan.map((u) => `  ${u}`),
+    "",
+    "Phones must be on the same Wi-Fi. Run start.bat again to try",
+    "installing cloudflared for a public link.",
+    "Keep this window open. Closing it ends the game.",
+  ]);
+  openBrowser(lan[0] ?? `http://localhost:${WEB}/host`);
+} else {
+  console.log("  Opening a public link through Cloudflare (free quick tunnel)...");
+  let found = false;
+  run("tunnel", `${cloudflared} tunnel --no-autoupdate --url http://localhost:${WEB}`, {
+    quiet: true,
+    onText: async (text) => {
+      const url = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/)?.[0];
+      if (!url || found) return;
+      found = true;
+      console.log(`  Got ${url} - waiting for it to come online...`);
+      await waitFor(url, 60);
+      banner([
+        "PAPER PLANE CHALLENGE IS LIVE",
+        "",
+        "Host screen (opening in your browser now):",
+        `  ${url}/host`,
+        "Control phone (runs everything; big screen shows a QR):",
+        `  ${url}/control`,
+        "",
+        "Players scan the QR code on the host screen.",
+        "Works on any Wi-Fi or mobile data.",
+        "",
+        "Keep this window open and the laptop awake.",
+        "If it closes, run start.bat again: the game is kept. Choose",
+        '"Resume a game" on the big screen (PIN + password).',
+      ]);
+      openBrowser(`${url}/host`);
+    },
+  });
+  setTimeout(() => {
+    if (!found) console.log("  Still waiting for the tunnel... check the internet connection.");
+  }, 30000);
+}

@@ -1,0 +1,13 @@
+{
+  "name": "paper-plane-challenge",
+  "private": true,
+  "workspaces": ["web", "worker"],
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,red \"npm run dev -w worker\" \"npm run dev -w web\"",
+    "build": "npm run build -w web",
+    "check": "npm run check -w worker && npm run check -w web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

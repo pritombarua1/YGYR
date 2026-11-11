@@ -1,0 +1,94 @@
+import { useEffect } from "react";
+import { motion } from "motion/react";
+import { callOrder, roundStatus } from "../queue";
+import type { Scored } from "../scoring";
+import type { GameState } from "../types";
+import { binThrows, isTeam, members, modeOf, PHASE_LABEL, roundKicker } from "../mode";
+import { SCORING } from "../config";
+import { play } from "../sound";
+import { LandingStamp, useLanding } from "./CallCard";
+import { BinDrop, useBinDrops } from "./BinDrop";
+import { Leaderboard } from "./Leaderboard";
+import { Plane } from "./Plane";
+
+/**
+ * Big-screen view of a round: only what's happening right now.
+ * Who's throwing (huge), who's next, the landing moment, and a short top 5.
+ */
+export function Stage({ state, scored }: { state: GameState; scored: Scored[] }) {
+  const isBin = state.phase === "bin";
+  const mode = modeOf(state);
+  const throws = binThrows(state);
+  const last = state.rounds[state.rounds.length - 1] === state.phase;
+  const nextRound = state.rounds[state.rounds.indexOf(state.phase as "distance" | "bin") + 1];
+  const order = callOrder(state);
+  const up = order[0];
+  const next = order.slice(1, 4);
+  const status = roundStatus(state);
+  const landing = useLanding(state.players);
+  const drops = useBinDrops(state.players);
+
+  useEffect(() => {
+    if (landing && !isBin) play("land");
+  }, [landing]);
+  useEffect(() => {
+    if (drops.length) play("bin");
+  }, [drops.length]);
+
+  return (
+    <div className="stage-wrap">
+      <section className="stage sheet">
+        {status.complete ? (
+          <motion.div className="stage-done" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+            <Plane size={160} />
+            <strong className="display">{state.rounds.length > 1 ? `${roundKicker(state, state.phase as "distance" | "bin")} complete!` : "Everyone has flown!"}</strong>
+            <span className="hand">{last || !nextRound ? "Time to find out who won…" : `Next up: ${PHASE_LABEL[nextRound].toLowerCase()} round.`}</span>
+          </motion.div>
+        ) : up ? (
+          <>
+            <span className="kicker">Now throwing</span>
+            <motion.div
+              key={up.id}
+              className="stage-who"
+              initial={{ x: 120, opacity: 0, rotate: 3 }}
+              animate={{ x: 0, opacity: 1, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 260, damping: 24 }}
+            >
+              <span className="stage-name hand">{up.name}</span>
+              {isTeam(up) && <span className="stage-team">{members(up)}</span>}
+              <span className="stage-id">{up.id}</span>
+            </motion.div>
+            {isBin ? (
+              <div className="slots" aria-label={`${up.bins ?? 0} of ${throws} in the bin`}>
+                {Array.from({ length: throws }, (_, i) => (
+                  <span key={`${up.id}-${i}-${(up.bins ?? 0) > i}`} className={`slot ${(up.bins ?? 0) > i ? "in" : ""}`} />
+                ))}
+              </div>
+            ) : (
+              <p className="stage-hint">Throw from the line!</p>
+            )}
+            {next.length > 0 && (
+              <p className="stage-next">
+                <span>Up next</span>
+                {next.map((p) => (
+                  <b key={p.id}>{p.name}</b>
+                ))}
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="hand stage-wait">Getting the next pilot ready…</p>
+        )}
+        <p className="stage-progress">
+          {status.done.length} of {state.players.length} thrown
+          {status.away.length > 0 && ` · ${status.away.length} not here`}
+        </p>
+        {!isBin && <LandingStamp landing={landing} />}
+      </section>
+      <aside className="stage-side">
+        {isBin && <BinDrop drops={drops} points={mode === "both" ? SCORING.binPoints : null} />}
+        <Leaderboard rows={scored} cfg={state} show={isBin ? "all" : "distance"} limit={5} title="Top 5" />
+      </aside>
+    </div>
+  );
+}

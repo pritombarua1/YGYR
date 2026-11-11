@@ -1,0 +1,96 @@
+import type { Entries, Round, Setup } from "../types";
+import { binThrows } from "../mode";
+
+const MIN_TEAM = 2;
+const MAX_TEAM = 6;
+
+/** One line saying what this game is, e.g. "Longest throw wins · solo pilots or teams of up to 4". */
+export function describeSetup(s: Setup) {
+  const what =
+    s.rounds.length > 1
+      ? `Distance + bin (${binThrows(s)} throws), points added up`
+      : s.rounds[0] === "distance"
+        ? "Longest throw wins"
+        : `Bin only: most planes in from ${binThrows(s)} throws`;
+  const who = s.entries === "solo" ? "individuals only" : s.entries === "teams" ? `teams of 2 to ${s.teamMax}` : `solo pilots or teams of up to ${s.teamMax}`;
+  return `${what} · ${who}`;
+}
+
+/**
+ * Which challenges run and who can enter. Used when creating a game and in the control Menu
+ * (where it is locked once the first round has started).
+ */
+export function SetupPicker({ value, onChange, locked }: { value: Setup; onChange: (s: Setup) => void; locked?: boolean }) {
+  const toggle = (r: Round) => {
+    const on = value.rounds.includes(r);
+    if (on && value.rounds.length === 1) return; // at least one challenge
+    const rounds = (["distance", "bin"] as Round[]).filter((x) => (x === r ? !on : value.rounds.includes(x)));
+    onChange({ ...value, rounds });
+  };
+  const entries: [Entries, string][] = [
+    ["both", "Both"],
+    ["solo", "Individuals"],
+    ["teams", "Teams"],
+  ];
+  return (
+    <div className="setup-pick">
+      <span className="setup-k">Challenges</span>
+      <div className="seg" role="group" aria-label="Challenges">
+        {(
+          [
+            ["distance", "Longest throw"],
+            ["bin", "Bin throw"],
+          ] as [Round, string][]
+        ).map(([r, label]) => {
+          const on = value.rounds.includes(r);
+          return (
+            <button
+              type="button"
+              key={r}
+              aria-pressed={on}
+              className={on ? "on" : ""}
+              disabled={locked}
+              title={on && value.rounds.length === 1 ? "At least one challenge has to be on" : undefined}
+              onClick={() => toggle(r)}
+            >
+              {on ? "✓ " : ""}
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      <span className="setup-k">Who can enter</span>
+      <div className="seg" role="radiogroup" aria-label="Who can enter">
+        {entries.map(([e, label]) => (
+          <button
+            type="button"
+            key={e}
+            role="radio"
+            aria-checked={value.entries === e}
+            className={value.entries === e ? "on" : ""}
+            disabled={locked}
+            onClick={() => onChange({ ...value, entries: e })}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {value.entries !== "solo" && (
+        <div className="winners-pick">
+          <span>Team size up to</span>
+          <button type="button" className="btn" disabled={locked || value.teamMax <= MIN_TEAM} onClick={() => onChange({ ...value, teamMax: value.teamMax - 1 })} aria-label="Smaller teams">
+            −
+          </button>
+          <strong>{value.teamMax}</strong>
+          <button type="button" className="btn" disabled={locked || value.teamMax >= MAX_TEAM} onClick={() => onChange({ ...value, teamMax: value.teamMax + 1 })} aria-label="Bigger teams">
+            +
+          </button>
+        </div>
+      )}
+      <p className="setup-sum">{describeSetup(value)}</p>
+      <p className="hint">A team is one entry: one plane, one turn, scored exactly like a solo pilot.</p>
+    </div>
+  );
+}

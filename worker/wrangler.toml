@@ -1,0 +1,13 @@
+name = "paper-plane-api"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+
+# One Durable Object per game PIN. It holds the live state and the WebSockets.
+[[durable_objects.bindings]]
+name = "GAME"
+class_name = "Game"
+
+# SQLite-backed Durable Objects are available on the free plan.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Game"]
