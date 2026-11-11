@@ -43,20 +43,99 @@ process.on("SIGTERM", () => stop(0));
 function run(name, command, { quiet = false, onText } = {}) {
   const child = spawn(command, { cwd: root, shell: true, stdio: ["ignore", "pipe", "pipe"] });
   children.push(child);
+  const tail = []; // last lines of output, shown if it stops unexpectedly (quiet servers stay quiet otherwise)
   const onData = (buf) => {
     const text = buf.toString();
     onText?.(text);
-    if (quiet) return;
-    for (const line of text.split(/\r?\n/)) if (line.trim()) console.log(`  [${name}] ${line}`);
+    for (const line of text.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      tail.push(line.replace(/\x1b\[[0-9;]*m/g, ""));
+      if (tail.length > 25) tail.shift();
+      if (!quiet) console.log(`  [${name}] ${line}`);
+    }
   };
   child.stdout.on("data", onData);
   child.stderr.on("data", onData);
   child.on("exit", (code) => {
     if (stopping || restarting.has(child)) return;
-    console.log(`\n  [${name}] stopped unexpectedly (code ${code}). Shutting everything down.`);
+    console.log(`\n  [${name}] stopped unexpectedly (code ${code}). Its last messages:`);
+    for (const line of tail) console.log(`    ${line}`);
+    console.log("\n  Shutting everything down.");
     stop(1);
   });
   return child;
+}
+
+/** Who is listening on a port (Windows): { pid, command } or null. */
+function listener(port) {
+  if (!isWin) return null;
+  try {
+    const out = execSync("netstat -ano -p tcp", { encoding: "utf8" });
+    const line = out.split(/\r?\n/).find((l) => /LISTENING/.test(l) && new RegExp(`[:.]${port}\\s`).test(l));
+    if (!line) return null;
+    const pid = Number(line.trim().split(/\s+/).pop());
+    if (!pid) return null;
+    let command = "";
+    try {
+      command = execSync(`powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CommandLine"`, { encoding: "utf8" }).trim();
+    } catch {
+      // can't read it: treat as someone else's
+    }
+    return { pid, command };
+  } catch {
+    return null;
+  }
+}
+
+/** Asks a yes/no question; Enter = yes. */
+function askYes(question) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(question, (a) => (rl.close(), resolve(!/^\s*n/i.test(a))));
+  });
+}
+
+/**
+ * The ports must be free before starting, or a new server quits while an old one answers in its
+ * place. An older copy of this contest still running (another start.bat window, a crashed run) is
+ * offered to be stopped; anything else using a port is named so it can be closed.
+ */
+async function freePorts() {
+  const ports = [API, WEB, UPDATER];
+  const busy = ports.map((port) => ({ port, who: listener(port) })).filter((b) => b.who);
+  if (!busy.length) return;
+  // ours = runs from this folder, or is this launcher (start.bat starts it as "node scripts\start.mjs")
+  const ours = (cmd) => cmd.toLowerCase().includes(root.toLowerCase()) || /scripts[\\/]start\.mjs/i.test(cmd);
+  const others = busy.filter((b) => !ours(b.who.command));
+  if (others.length) {
+    for (const b of others) console.log(`\n  Port ${b.port} is being used by another program (process ${b.who.pid}): ${b.who.command.slice(0, 120) || "unknown"}`);
+    console.log("  Close that program (or restart the laptop) and run start.bat again.");
+    stop(1);
+  }
+  banner([
+    "ANOTHER COPY OF THE CONTEST IS ALREADY RUNNING",
+    "",
+    "(another start.bat window, or one that didn't close properly)",
+    "Players and scores are kept either way: they're saved on this laptop.",
+  ]);
+  if (!(await askYes("  Stop it and start fresh here? [Y/n] "))) {
+    console.log("  OK, leaving it running. Use the window that's already open.");
+    stop(0);
+  }
+  for (const b of busy) {
+    try {
+      execSync(`taskkill /pid ${b.who.pid} /T /F`, { stdio: "ignore" });
+    } catch {
+      // already gone
+    }
+  }
+  await new Promise((r) => setTimeout(r, 1500));
+  const still = ports.filter((p) => listener(p));
+  if (still.length) {
+    console.log(`  Couldn't free port ${still.join(", ")}. Restart the laptop and run start.bat again.`);
+    stop(1);
+  }
+  console.log("  Stopped the old copy.");
 }
 
 async function waitFor(url, seconds) {
@@ -119,6 +198,9 @@ function askHidden(question) {
 }
 
 // ---------------------------------------------------------------------------
+
+// First make sure no older copy is still running, before anything is written (its password file included).
+await freePorts();
 
 // The host password protects creating/resuming a game and the control phone.
 let password = "";

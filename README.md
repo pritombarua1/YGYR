@@ -123,6 +123,7 @@ The bottom of the control phone always has **← Back** and **Next →**, labell
 | Control phone dies, closes the tab, or gets a call | Open `/control` again (it remembers the PIN + password on that phone) or on any other phone, or the laptop's corner **Menu → Open the controls**. The audience never sees a warning; the laptop's corner Menu shows how many control phones are connected |
 | Two control phones / double taps | Several controls at once is fine. A step change that arrives after the event already moved on (double-tapped Next, two people pressing at once, a leftover "Start Round 2?" pop-up) is ignored, so the event never jumps two steps. Skip only ever skips the person on screen |
 | Phone signal blips mid-tap | Taps are kept and sent when it reconnects (stale ones are ignored, see above) |
+| start.bat says "Another copy of the contest is already running" | An older window (or one that crashed) still holds the ports. **Y** stops it and starts fresh (players and scores are kept); **N** leaves it running, so use that window. If a server ever stops, start.bat now prints its last messages so you can see why |
 | Laptop / start.bat restarted (new link) | Run start.bat, then on the big screen **Resume a game** with the PIN + password. Scores are kept. Players rejoin with name + code |
 | No sound on the big screen | Click anywhere on it once (browsers need one click) |
 | Start completely fresh | Control **Menu → Reset event**: same PIN and QR, everyone joins again |
