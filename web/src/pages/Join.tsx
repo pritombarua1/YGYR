@@ -6,11 +6,12 @@ import { callOrder, isAway } from "../queue";
 import { play, useSound } from "../sound";
 import { useRevealShown, winnersOf } from "../components/Podium";
 import { EVENT, SCORING } from "../config";
-import { binText, binThrows, modeOf, roundKicker, teamOf } from "../mode";
+import { deviceKey, fingerprint } from "../device";
+import { binText, binThrows, modeOf, roundKicker, teamMatches, teamOf } from "../mode";
 import type { GameState, Team } from "../types";
 import { rulesFor, withWinners } from "../components/RuleSlides";
-import { LandingStamp, useLanding } from "../components/CallCard";
-import { Dots } from "../components/Inputs";
+import { LandingStamp, useLanding } from "../components/Landing";
+import { Dots, Search } from "../components/Inputs";
 import { CountUp } from "../components/CountUp";
 import { RoundIntro, usePhaseTransition } from "../components/RoundIntro";
 import { BinDrop, useBinDrops } from "../components/BinDrop";
@@ -70,7 +71,7 @@ function JoinGame({ pin }: { pin: string }) {
     if (clean.length > 20) return setError("Keep it to 20 characters.");
     setError("");
     setPending(true);
-    send({ t: "join", name: clean, code: askCode ? code.trim().toUpperCase() : undefined });
+    send({ t: "join", name: clean, code: askCode ? code.trim().toUpperCase() : undefined, device: deviceKey(), fp: fingerprint() });
   };
 
   if (noGame) {
@@ -316,11 +317,19 @@ function PlayerPass({ state, me, online, code, send }: { state: GameState; me: s
                 <>
                   <h2 className="display">{myPlace === 1 ? (crew ? "Your team won!" : "You won!") : crew ? "Your team's a winner!" : "You're a winner!"}</h2>
                   <p className="big-place hand">{p?.tied ? placeOf(p) : ordinal(myPlace)} place</p>
+                  {crew && (
+                    <p>
+                      {state.teamPrize === "each"
+                        ? "Everyone in your team gets a prize: go up together!"
+                        : "Your team wins the prize for this place: go up together to collect it."}
+                    </p>
+                  )}
                 </>
               ) : (
                 <>
-                  <h2 className="display">{p ? `${crew ? "Your team" : "You"} finished ${placeOf(p)}` : "Thanks for flying!"}</h2>
-                  <p>Not in the top {state.winners} this time. Good flying, and thanks for playing.</p>
+                  {/* no sad news: everyone who took part gets a thank-you (the full table is one tap away) */}
+                  <h2 className="display">Great flying!</h2>
+                  <p>{crew ? `Thanks for flying with ${crew.name}.` : "Thanks for taking part."} Snacks are for everyone, so help yourself!</p>
                 </>
               )
             ) : (
@@ -391,6 +400,7 @@ function PlayerPass({ state, me, online, code, send }: { state: GameState; me: s
  */
 function TeamCard({ state, me, send }: { state: GameState; me: string; send: (m: object) => void }) {
   const [name, setName] = useState("");
+  const [query, setQuery] = useState("");
   const open = state.phase === "lobby" || state.phase === "rules";
   const mine = teamOf(state, me);
   const asked = state.teams.find((t) => t.requests.includes(me));
@@ -451,7 +461,7 @@ function TeamCard({ state, me, send }: { state: GameState; me: string; send: (m:
   }
 
   if (!open) return null;
-  const others = state.teams;
+  const others = state.teams.filter((t) => teamMatches(state, t, query));
   return (
     <section className="sheet team-card">
       <span className="kicker">Teams</span>
@@ -467,6 +477,10 @@ function TeamCard({ state, me, send }: { state: GameState; me: string; send: (m:
         <>
           <h2 className="display">{state.entries === "teams" ? "Find a team" : "Fly with a team?"}</h2>
           {state.entries === "teams" && <p className="notice">Teams only today: you need a team to throw.</p>}
+          {state.teams.length > 0 && (
+            <Search value={query} onChange={setQuery} placeholder="Find a team or a friend's name" label="Search teams by name or member" />
+          )}
+          {state.teams.length > 0 && others.length === 0 && <p className="hint">No team matches "{query}". Start one below?</p>}
           {others.length > 0 && (
             <ul className="team-list">
               {others.map((t) => (

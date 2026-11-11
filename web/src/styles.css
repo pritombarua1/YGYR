@@ -988,12 +988,15 @@ a {
   flex-wrap: wrap;
   gap: 1em 1.2em;
   align-content: flex-start;
+  align-items: flex-start; /* a tag that gains a team label grows alone; its row-mates stay put */
   overflow: hidden;
 }
 
 /* luggage tag with a punched hole */
 .tag {
   position: relative;
+  transform: rotate(var(--tilt, 0deg));
+  animation: tag-pop 0.45s cubic-bezier(0.2, 1.25, 0.45, 1) both;
   background: var(--sheet);
   border: 2px solid var(--ink);
   padding: 0.35em 1em 0.4em 2.2em;
@@ -2157,6 +2160,7 @@ a {
 .landed {
   position: absolute;
   inset: 0;
+  animation: landed-life 2.2s linear both; /* = LANDING_MS in Landing.tsx */
   background: rgba(251, 252, 249, 0.94);
   display: flex;
   align-items: center;
@@ -2166,7 +2170,14 @@ a {
   z-index: 5;
 }
 
+.landed-plane {
+  display: block;
+  animation: landed-skid 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
 .landed-stamp {
+  transform: rotate(-6deg);
+  animation: landed-thud 0.32s cubic-bezier(0.3, 1.25, 0.55, 1) 0.4s both;
   border: 4px solid var(--grass);
   color: var(--grass);
   padding: 0.2em 0.8em 0.3em;
@@ -2974,7 +2985,7 @@ textarea {
   border-radius: 0.3em;
   transform: rotate(-10deg);
   box-shadow: inset 0 0 0 0.12em var(--sheet), inset 0 0 0 0.2em var(--red);
-  animation: stamp 0.45s cubic-bezier(0.3, 1.8, 0.5, 1) 0.35s both;
+  animation: stamp 0.4s cubic-bezier(0.25, 1.3, 0.5, 1) 0.35s both;
 }
 
 .place-seal.small {
@@ -4041,6 +4052,7 @@ textarea {
 }
 
 .formation li {
+  transition: transform 0.25s ease-out, box-shadow 0.25s, border-color 0.25s, opacity 0.25s;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -4171,4 +4183,163 @@ textarea {
   padding: 8px;
   border: 2px solid var(--ink);
   background: #fff;
+}
+
+/* ---------- landing moment + tag pop (CSS so they always end cleanly) ---------- */
+
+@keyframes tag-pop {
+  from {
+    opacity: 0;
+    transform: rotate(-20deg) scale(0.3);
+  }
+  60% {
+    opacity: 1;
+  }
+}
+
+/* fade in, hold, fade out, and stay invisible until it's removed: no flash at the end */
+@keyframes landed-life {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes landed-skid {
+  from {
+    transform: translate(-140%, -40px) rotate(25deg);
+  }
+  70% {
+    transform: translate(4%, 2px) rotate(-5deg);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes landed-thud {
+  from {
+    opacity: 0;
+    transform: rotate(-14deg) scale(2);
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tag,
+  .landed-plane,
+  .landed-stamp {
+    animation: none;
+  }
+  .landed {
+    animation-name: landed-fade-only;
+  }
+  .formation li {
+    transition: none;
+  }
+}
+
+@keyframes landed-fade-only {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  5%,
+  90% {
+    opacity: 1;
+  }
+}
+
+/* ---------- control phones list ---------- */
+.controllers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  align-items: flex-start;
+}
+
+.ctrl-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+
+.ctrl-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.35em 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.ctrl-dot {
+  width: 0.7em;
+  height: 0.7em;
+  border-radius: 50%;
+  background: var(--line);
+  flex: none;
+}
+
+.ctrl-dot.on {
+  background: var(--grass);
+}
+
+.ctrl-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.ctrl-name small {
+  margin-left: 0.5em;
+  font-family: var(--num);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+
+.ctrl-invite {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  align-items: flex-start;
+}
+
+.ctrl-qr {
+  width: 11em;
+  background: #fff;
+  padding: 0.3em;
+}
+
+.ctrl-qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pl-twin {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--red);
+}
+
+.winner-prize {
+  font-family: var(--num);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.95em;
+  color: var(--red);
 }

@@ -20,6 +20,7 @@ export const DEFAULT_SETUP = {
   rounds: ["distance"] as ("distance" | "bin")[],
   entries: "both" as "solo" | "teams" | "both",
   teamMax: 4,
+  teamPrize: "shared" as "shared" | "each", // a winning team shares its place's prize (or "each": one per member)
   winners: 3,
 };
 

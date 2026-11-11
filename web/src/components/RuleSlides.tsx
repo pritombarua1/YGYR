@@ -17,7 +17,7 @@ export const withWinners = (text: string, winners: number) => text.split("{W}").
 
 export type Art = "fold" | "shape" | "team" | "distance" | "bin" | "total";
 export type Rule = { short: string; title: string; text: string; phone: string; art: Art };
-type RuleCfg = Pick<GameState, "rounds" | "entries" | "teamMax">;
+type RuleCfg = Pick<GameState, "rounds" | "entries" | "teamMax"> & Partial<Pick<GameState, "teamPrize">>;
 
 export function rulesFor(cfg: RuleCfg): Rule[] {
   const mode = modeOf(cfg);
@@ -49,8 +49,8 @@ export function rulesFor(cfg: RuleCfg): Rule[] {
       title: cfg.entries === "teams" ? "Teams of 2 to " + cfg.teamMax : "Fly solo or as a team",
       text:
         (cfg.entries === "teams" ? `Teams of up to ${cfg.teamMax}.` : `On your own, or in a team of up to ${cfg.teamMax}.`) +
-        " On your phone: start a team, or ask to join one and the captain lets you in. Everyone throws, team-mates one after another, and a team scores the average of its members. So a big team has no advantage over a solo pilot.",
-      phone: "Start a team on your phone or ask to join one. Team-mates throw one after another; a team scores its average.",
+        " On your phone: start a team, or ask to join one and the captain lets you in. Everyone throws, one after another: fold your own planes or pass one plane along, your call. A team scores the average of its members, so a big team has no advantage over a solo pilot.",
+      phone: "Start a team or ask to join one. Everyone throws, one after another (own planes or one shared plane). A team scores its average.",
       art: "team",
     });
   if (cfg.rounds.includes("distance"))
@@ -75,14 +75,15 @@ export function rulesFor(cfg: RuleCfg): Rule[] {
       phone: mode === "both" ? `${word} throws at the bin. Every plane in scores ${SCORING.binPoints} points.` : `${word} throws at the bin. Most planes in wins.`,
       art: "bin",
     });
+  const teamPrize = teams ? (cfg.teamPrize === "each" ? " A winning team: a prize for everyone in it." : " A winning team shares its prize.") : "";
   rules.push({
     short: mode === "both" ? "Add it up" : "Winners",
     title: mode === "both" ? "Add it up" : "The winners",
     text:
       (mode === "both"
         ? "Distance points + bin points = your total. On a tie, the longer flight wins. "
-        : "Exactly the same result? One more throw each to settle it. ") + PERKS,
-    phone: (mode === "both" ? "Distance + bin = your total. Tie? Longer flight wins. " : "Tie? One more throw each. ") + PERKS,
+        : "Exactly the same result? One more throw each to settle it. ") + PERKS + teamPrize,
+    phone: (mode === "both" ? "Distance + bin = your total. Tie? Longer flight wins. " : "Tie? One more throw each. ") + PERKS + teamPrize,
     art: "total",
   });
   return rules;

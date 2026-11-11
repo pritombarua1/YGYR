@@ -24,6 +24,10 @@ const TEAM_ACTIONS = ["createTeam", "requestTeam", "cancelRequest", "answerReque
 
 interface Player {
   id: string; // Pilot-01
+  device?: string; // random key kept by that browser: the same browser can't make a second pilot
+  fp?: string; // hashed hardware fingerprint (screen, cores, memory, GPU, time zone): same across browsers
+  net?: string; // hashed internet address
+  teamsMade?: number;
   token: string; // secret kept on the player's phone
   code?: string; // short rejoin code, shown on their pass, for joining back from another phone/browser
   name: string;
@@ -41,6 +45,17 @@ interface Team {
   tiebreak?: number | null; // throw-off metres for the team, only used to split an exact tie
 }
 
+/**
+ * A control phone the host has let in. Admins (logged in with the host password, or the big screen) can
+ * add and remove controllers; helpers who came in with an invite link can run the event but not manage it.
+ */
+interface Controller {
+  id: string; // C1, C2 ...
+  name: string; // shown to the host, e.g. "Sam's phone"
+  key: string; // secret kept on that phone, lets it back in after a reconnect
+  admin: boolean;
+}
+
 interface GameData {
   pin: string;
   hostKey: string;
@@ -49,6 +64,7 @@ interface GameData {
   rounds?: Round[]; // which challenges run, in order (at least one). Older games: both
   entries?: Entries;
   teamMax?: number; // most people in one team
+  teamPrize?: TeamPrize;
   reveal: number; // how many of those places have been revealed so far
   ruleStep?: number; // which rule slide is showing
   up?: string | null; // player currently called to throw
@@ -58,12 +74,15 @@ interface GameData {
   teamSeq?: number;
   players: Player[];
   teams?: Team[];
+  controllers?: Controller[];
+  ctrlSeq?: number;
+  invite?: string; // code in the "add a controller" link; a new one makes old links stop working
   createdAt: number;
 }
 
 // Who is on the other end of a socket. Stored on the socket so it survives hibernation.
 // Hosts are either the big screen ("display", has the host key) or a control phone ("control", has the password).
-type Tag = { role: "host" | "player" | "viewer"; kind?: "display" | "control"; playerId?: string };
+type Tag = { role: "host" | "player" | "viewer"; kind?: "display" | "control"; playerId?: string; ctrl?: string; admin?: boolean; net?: string };
 
 const GAME_LIFETIME_MS = 12 * 60 * 60 * 1000; // a PIN can be reused after 12 hours
 const MIN_WINNERS = 3;
@@ -73,7 +92,9 @@ const MAX_WINNERS = 10;
 const binThrows = (rounds: Round[]) => (rounds.includes("distance") ? 3 : 5);
 const idNum = (id: string) => Number(id.replace(/\D/g, "")) || 0;
 
-type Setup = { rounds: Round[]; entries: Entries; teamMax: number };
+// What a winning team gets: one prize for the place, shared ("shared"), or one per member ("each").
+type TeamPrize = "shared" | "each";
+type Setup = { rounds: Round[]; entries: Entries; teamMax: number; teamPrize: TeamPrize };
 /** Cleans settings from the create screen or the control Menu. Anything missing keeps `base`. */
 function cleanSetup(raw: any, base: Setup): Setup {
   const rounds = Array.isArray(raw?.rounds) ? ROUNDS.filter((r) => raw.rounds.includes(r)) : base.rounds;
@@ -81,12 +102,42 @@ function cleanSetup(raw: any, base: Setup): Setup {
     rounds: rounds.length ? rounds : base.rounds,
     entries: ENTRIES.includes(raw?.entries) ? raw.entries : base.entries,
     teamMax: raw?.teamMax === undefined ? base.teamMax : clampInt(raw.teamMax, MIN_TEAM, MAX_TEAM),
+    teamPrize: raw?.teamPrize === "each" || raw?.teamPrize === "shared" ? raw.teamPrize : base.teamPrize,
   };
 }
-const NEW_GAME: Setup = { rounds: ["distance"], entries: "both", teamMax: 4 };
-const OLD_GAME: Setup = { rounds: ["distance", "bin"], entries: "solo", teamMax: 4 }; // games made before these settings existed
+const NEW_GAME: Setup = { rounds: ["distance"], entries: "both", teamMax: 4, teamPrize: "shared" };
+const OLD_GAME: Setup = { rounds: ["distance", "bin"], entries: "solo", teamMax: 4, teamPrize: "shared" }; // games made before these settings existed
+
+/*
+ * Fair share for a public event. Each connection gets a small allowance of messages that refills
+ * over time (a token bucket); anything beyond it is dropped with a polite "slow down". The limits are
+ * far above what a real person tapping a phone does, and generous per network, because a whole class
+ * on the campus Wi-Fi shares one internet address.
+ */
+const LIMITS = {
+  player: { burst: 12, perSec: 2 }, // a player sends a handful of messages per event
+  viewer: { burst: 8, perSec: 1 }, // not joined yet: join attempts, rejoin codes
+  host: { burst: 60, perSec: 15 }, // control phones: quick bin taps, edits
+  maxMessage: 4096, // bytes; nothing legitimate comes close
+  maxPlayers: 300,
+  maxTeams: 100,
+  teamsPerPlayer: 6, // how many teams one player may start in a game (stops create/leave spam)
+  joinsPerNetwork: 80, // new players from one internet address ...
+  joinsWindowMs: 5 * 60 * 1000, // ... per 5 minutes
+  socketsPerNetwork: 400,
+};
 
 // No 0/O or 1/I, so codes are easy to read off a phone.
+/** Short one-way hash (hex), for addresses: we can compare them but never read them back. */
+async function hashOf(text: string) {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(d)].slice(0, 12).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Invite codes for adding a control phone: 6 easy-to-read characters.
+const newInvite = () =>
+  Array.from({ length: 6 }, () => "ABCDEFGHJKMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 31)]).join("");
+
 const newCode = () =>
   Array.from({ length: 4 }, () => "ABCDEFGHJKMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 31)]).join("");
 
@@ -168,15 +219,41 @@ export class Game extends DurableObject<Env> {
     return this.game.hostKey;
   }
 
-  async fetch(): Promise<Response> {
+  async fetch(req: Request): Promise<Response> {
+    // Behind start.bat's tunnel the real address arrives in X-Forwarded-For / CF-Connecting-IP.
+    const ip = (req.headers.get("x-forwarded-for")?.split(",")[0] || req.headers.get("cf-connecting-ip") || "local").trim();
+    const net = await hashOf(`${ip}|${this.game?.pin}|${this.game?.createdAt}`); // never stored in the clear
+    const open = this.ctx.getWebSockets().filter((s) => (s.deserializeAttachment() as Tag).net === net).length;
+    if (open >= LIMITS.socketsPerNetwork) return new Response("Too many connections from this network", { status: 429 });
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1]);
-    pair[1].serializeAttachment({ role: "viewer" } satisfies Tag);
+    pair[1].serializeAttachment({ role: "viewer", net } satisfies Tag);
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
 
+  /** Message allowance per connection (in memory: a fresh allowance after the object sleeps is fine). */
+  private buckets = new WeakMap<WebSocket, { tokens: number; at: number; warned: number }>();
+  private allowed(ws: WebSocket, role: Tag["role"]) {
+    const lim = role === "host" ? LIMITS.host : role === "player" ? LIMITS.player : LIMITS.viewer;
+    const now = Date.now();
+    const b = this.buckets.get(ws) ?? { tokens: lim.burst, at: now, warned: 0 };
+    b.tokens = Math.min(lim.burst, b.tokens + ((now - b.at) / 1000) * lim.perSec);
+    b.at = now;
+    const ok = b.tokens >= 1;
+    if (ok) b.tokens -= 1;
+    else if (now - b.warned > 5000) {
+      b.warned = now;
+      this.error(ws, "Whoa, that's a lot of taps. Give it a second and try again.");
+    }
+    this.buckets.set(ws, b);
+    return ok;
+  }
+
+  private recentJoins = new Map<string, number[]>(); // network -> times of new players (in memory)
+
   async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer) {
-    if (typeof raw !== "string") return;
+    if (typeof raw !== "string" || raw.length > LIMITS.maxMessage) return;
+    if (!this.allowed(ws, (ws.deserializeAttachment() as Tag).role)) return;
     let msg: any;
     try {
       msg = JSON.parse(raw);
@@ -191,24 +268,50 @@ export class Game extends DurableObject<Env> {
     g.rounds ??= OLD_GAME.rounds;
     g.entries ??= OLD_GAME.entries;
     g.teamMax ??= OLD_GAME.teamMax;
+    g.teamPrize ??= OLD_GAME.teamPrize;
     g.teams ??= [];
     g.teamSeq ??= 0;
+    g.controllers ??= [];
+    g.ctrlSeq ??= 0;
+    g.invite ??= newInvite();
     const tag = ws.deserializeAttachment() as Tag;
 
     if (msg.t === "hello") {
       if (msg.role === "host") {
-        // The big screen that created the game has the key. Control phones use the password.
-        const byKey = msg.key === g.hostKey;
+        // The big screen that created the game has the host key. A control phone gets in with the host
+        // password, or an invite link from the host, and is then remembered by its own controller key
+        // (so the host can remove it, and it gets back in after a reconnect without the password).
         const byPassword = !!this.env.HOST_PASSWORD && msg.password === this.env.HOST_PASSWORD;
-        const ok = byKey || byPassword;
-        const kind = msg.as === "control" ? "control" : "display";
-        ws.serializeAttachment({ role: ok ? "host" : "viewer", kind: ok ? kind : undefined } satisfies Tag);
-        this.send(ws, { t: "host", ok, key: ok ? g.hostKey : undefined });
-        if (ok && kind === "control") return this.broadcast(); // big screen learns a control phone is connected
+        if (msg.as !== "control") {
+          const ok = msg.key === g.hostKey || byPassword;
+          ws.serializeAttachment({ net: (ws.deserializeAttachment() as Tag)?.net, role: ok ? "host" : "viewer", kind: ok ? "display" : undefined, admin: ok } satisfies Tag);
+          this.send(ws, { t: "host", ok, key: ok ? g.hostKey : undefined });
+        } else {
+          let c = g.controllers!.find((c) => c.key === msg.ctrlKey);
+          const byInvite = typeof msg.invite === "string" && msg.invite.toUpperCase() === g.invite;
+          if (!c && (byPassword || byInvite)) {
+            g.ctrlSeq!++;
+            c = { id: `C${g.ctrlSeq}`, name: cleanName(msg.name) || `Control phone ${g.ctrlSeq}`, key: crypto.randomUUID(), admin: byPassword };
+            g.controllers!.push(c);
+            await this.ctx.storage.put("game", g);
+          }
+          if (c && byPassword && !c.admin) c.admin = true; // a helper who learns the password is promoted
+          const ok = !!c;
+          ws.serializeAttachment({ net: (ws.deserializeAttachment() as Tag)?.net, role: ok ? "host" : "viewer", kind: ok ? "control" : undefined, ctrl: c?.id, admin: c?.admin } satisfies Tag);
+          this.send(ws, {
+            t: "host",
+            ok,
+            ctrlKey: c?.key,
+            ctrlId: c?.id,
+            admin: c?.admin,
+            reason: ok ? undefined : msg.invite ? "That invite link has been replaced. Ask the host for the new one." : msg.ctrlKey && !msg.password ? "removed" : undefined,
+          });
+          if (ok) return this.broadcast(); // everyone with host rights sees the controller list
+        }
       } else if (msg.role === "player") {
         const p = g.players.find((p) => p.token === msg.token);
         if (p) p.code ??= newCode();
-        ws.serializeAttachment({ role: p ? "player" : "viewer", playerId: p?.id } satisfies Tag);
+        ws.serializeAttachment({ net: (ws.deserializeAttachment() as Tag)?.net, role: p ? "player" : "viewer", playerId: p?.id } satisfies Tag);
         this.send(ws, { t: "you", id: p?.id ?? null, code: p?.code });
       }
       // anyone else (the results page) just watches
@@ -219,12 +322,22 @@ export class Game extends DurableObject<Env> {
       if (tag.role === "player") return;
       const name = cleanName(msg.name);
       if (!name) return this.error(ws, "Your name needs 1 to 20 characters.");
+      const device = typeof msg.device === "string" ? msg.device.slice(0, 64) : "";
+      const fp = typeof msg.fp === "string" ? msg.fp.slice(0, 64) : "";
+      // One pilot per browser: this browser already has a pass, so it gets that pass back.
+      const mine = device && g.players.find((o) => o.device === device);
+      if (mine) {
+        ws.serializeAttachment({ ...tag, role: "player", playerId: mine.id } satisfies Tag);
+        this.send(ws, { t: "you", id: mine.id, token: mine.token, code: mine.code });
+        return this.error(ws, `This phone already joined as ${mine.name}, so here's that pass. One pass per person!`);
+      }
       const existing = g.players.find((o) => o.name.toLowerCase() === name.toLowerCase());
       if (existing) {
         // Same person on a new phone or browser: their rejoin code lets them back in as themselves.
         const code = String(msg.code ?? "").trim().toUpperCase();
         if (code && code === existing.code) {
-          ws.serializeAttachment({ role: "player", playerId: existing.id } satisfies Tag);
+          if (device) existing.device = device; // now this browser is theirs too
+          ws.serializeAttachment({ ...tag, role: "player", playerId: existing.id } satisfies Tag);
           return this.send(ws, { t: "you", id: existing.id, token: existing.token, code: existing.code });
         }
         return this.send(ws, {
@@ -235,18 +348,27 @@ export class Game extends DurableObject<Env> {
             : `"${name}" is already on board. If that's you, enter your rejoin code. If not, add an initial.`,
         });
       }
+      if (g.players.length >= LIMITS.maxPlayers) return this.error(ws, "This game is full. Ask the host.");
+      const now = Date.now();
+      const recent = (this.recentJoins.get(tag.net ?? "") ?? []).filter((t) => now - t < LIMITS.joinsWindowMs);
+      if (recent.length >= LIMITS.joinsPerNetwork) return this.error(ws, "Lots of people are joining from this network right now. Try again in a minute.");
+      recent.push(now);
+      this.recentJoins.set(tag.net ?? "", recent);
       g.seq++;
       const player: Player = {
         id: `Pilot-${String(g.seq).padStart(2, "0")}`,
         token: crypto.randomUUID(),
         code: newCode(),
         name,
+        device: device || undefined,
+        fp: fp || undefined,
+        net: tag.net,
         distance: null,
         bins: null,
       };
       g.players.push(player);
       if (!g.up) this.callNext(null); // a late joiner gets called if the queue was empty
-      ws.serializeAttachment({ role: "player", playerId: player.id } satisfies Tag);
+      ws.serializeAttachment({ ...tag, role: "player", playerId: player.id } satisfies Tag);
       this.send(ws, { t: "you", id: player.id, token: player.token, code: player.code });
       return this.commit();
     }
@@ -264,6 +386,9 @@ export class Game extends DurableObject<Env> {
           if (!name) return this.error(ws, "Your team name needs 1 to 20 characters.");
           if (mine) return this.error(ws, `You're already in ${mine.name}. Leave it first.`);
           if (g.teams!.some((t) => t.name.toLowerCase() === name.toLowerCase())) return this.error(ws, `There's already a team called "${name}".`);
+          if (g.teams!.length >= LIMITS.maxTeams) return this.error(ws, "There are already lots of teams. Ask to join one instead.");
+          if ((me.teamsMade ?? 0) >= LIMITS.teamsPerPlayer) return this.error(ws, "You've started a lot of teams already. Join one, or ask the host.");
+          me.teamsMade = (me.teamsMade ?? 0) + 1;
           this.dropRequests(me.id);
           g.teamSeq!++;
           g.teams!.push({ id: `Team-${String(g.teamSeq).padStart(2, "0")}`, name, captain: me.id, members: [me.id], requests: [] });
@@ -287,6 +412,7 @@ export class Game extends DurableObject<Env> {
           if (!t || !t.requests.includes(msg.id)) return;
           t.requests = t.requests.filter((id) => id !== msg.id);
           if (!msg.ok) break;
+          if (!g.players.some((o) => o.id === msg.id)) return this.error(ws, "They're not in the game any more.");
           if (this.teamOf(msg.id)) return this.error(ws, "They've joined another team already.");
           if (t.members.length >= g.teamMax!) return this.error(ws, `Your team is full (${g.teamMax} people).`);
           this.dropRequests(msg.id);
@@ -322,6 +448,7 @@ export class Game extends DurableObject<Env> {
       case "phase":
         if (!PHASES.includes(msg.phase) || (isRound(msg.phase) && !g.rounds!.includes(msg.phase))) return;
         g.phase = msg.phase;
+        if (msg.phase !== "lobby" && msg.phase !== "rules") this.dropAllRequests(); // teams are locked now
         g.reveal = 0;
         g.ruleStep = clampInt(msg.ruleStep, 0, 9); // "Back" from round 1 lands on the last rule
         g.up = null;
@@ -339,12 +466,47 @@ export class Game extends DurableObject<Env> {
           g.reveal = Math.min(g.reveal, g.winners);
         }
         if (msg.setup) {
-          // which challenges run and who can enter: only until the first round starts
-          if (g.phase !== "lobby" && g.phase !== "rules") return this.error(ws, "The challenges are locked once the first round has started.");
-          Object.assign(g, cleanSetup(msg.setup, { rounds: g.rounds!, entries: g.entries!, teamMax: g.teamMax! }));
+          const want = cleanSetup(msg.setup, { rounds: g.rounds!, entries: g.entries!, teamMax: g.teamMax!, teamPrize: g.teamPrize! });
+          // Team size can always grow, but never shrink once a team exists (nobody gets pushed out).
+          if (want.teamMax < g.teamMax! && g.teams!.length > 0)
+            return this.error(ws, `Teams have started forming, so the team size can only go up (it's ${g.teamMax} now).`);
+          // Which challenges run and who can enter: only until the first round starts.
+          const changes = want.rounds.join() !== g.rounds!.join() || want.entries !== g.entries;
+          if (changes && g.phase !== "lobby" && g.phase !== "rules") return this.error(ws, "The challenges are locked once the first round has started.");
+          if (want.entries === "solo" && g.entries !== "solo") this.dropAllRequests();
+          Object.assign(g, want);
           const max = binThrows(g.rounds!);
           for (const o of g.players) if (o.bins !== null) o.bins = Math.min(o.bins, max);
         }
+        break;
+      case "controllerRemove": {
+        // admins only: take a control phone off the list and disconnect it
+        if (!tag.admin) return this.error(ws, "Only the host can remove control phones.");
+        const c = g.controllers!.find((c) => c.id === msg.id);
+        if (!c) return;
+        if (c.id === tag.ctrl) return this.error(ws, "That's this phone. Use \"Stop controlling on this phone\" instead.");
+        g.controllers = g.controllers!.filter((o) => o !== c);
+        if (!c.admin) g.invite = newInvite(); // the link they came in with must not let them straight back in
+        for (const s of this.ctx.getWebSockets()) {
+          const t = s.deserializeAttachment() as Tag;
+          if (t.ctrl === c.id) {
+            this.send(s, { t: "host", ok: false, reason: "removed" });
+            s.serializeAttachment({ net: (s.deserializeAttachment() as Tag)?.net, role: "viewer" } satisfies Tag);
+          }
+        }
+        break;
+      }
+      case "controllerRename": {
+        const c = g.controllers!.find((c) => c.id === msg.id);
+        const name = cleanName(msg.name);
+        if (!c || !name) return;
+        if (!tag.admin && c.id !== tag.ctrl) return this.error(ws, "Only the host can rename other control phones.");
+        c.name = name;
+        break;
+      }
+      case "newInvite": // admins only: old "add a controller" links stop working; phones already in stay in
+        if (!tag.admin) return this.error(ws, "Only the host can make a new invite link.");
+        g.invite = newInvite();
         break;
       case "setTeam": {
         // host moves a player into a team (no approval needed), or out of one (team: null)
@@ -458,7 +620,7 @@ export class Game extends DurableObject<Env> {
         for (const s of this.ctx.getWebSockets()) {
           if ((s.deserializeAttachment() as Tag).playerId === p.id) {
             this.send(s, { t: "removed" });
-            s.serializeAttachment({ role: "viewer" } satisfies Tag);
+            s.serializeAttachment({ net: (s.deserializeAttachment() as Tag)?.net, role: "viewer" } satisfies Tag);
           }
         }
         break;
@@ -468,9 +630,10 @@ export class Game extends DurableObject<Env> {
           const t = s.deserializeAttachment() as Tag;
           if (t.role === "player") {
             this.send(s, { t: "removed", reason: "reset" });
-            s.serializeAttachment({ role: "viewer" } satisfies Tag);
+            s.serializeAttachment({ net: (s.deserializeAttachment() as Tag)?.net, role: "viewer" } satisfies Tag);
           }
         }
+        // (control phones stay connected: same people running it)
         Object.assign(g, { phase: "lobby", reveal: 0, ruleStep: 0, up: null, away: { distance: [], bin: [] }, trash: null, seq: 0, teamSeq: 0, players: [], teams: [] });
         break;
       }
@@ -503,6 +666,10 @@ export class Game extends DurableObject<Env> {
 
   private teamOf(playerId: string) {
     return this.game!.teams!.find((t) => t.members.includes(playerId)) ?? null;
+  }
+
+  private dropAllRequests() {
+    for (const t of this.game!.teams!) t.requests = [];
   }
 
   private dropRequests(playerId: string) {
@@ -567,6 +734,23 @@ export class Game extends DurableObject<Env> {
     return (ws.deserializeAttachment() as Tag).role === "host";
   }
 
+  /**
+   * Other pilots that look like the same phone: same hardware fingerprint on the same network. Only a
+   * hint for the host (two friends with the same phone model on the same Wi-Fi can look alike), never
+   * an automatic block.
+   */
+  private twins(g: GameData, id: string) {
+    const p = g.players.find((o) => o.id === id);
+    if (!p?.fp) return undefined;
+    const same = g.players.filter((o) => o !== p && o.fp === p.fp && o.net === p.net).map((o) => o.id);
+    return same.length ? same : undefined;
+  }
+
+  /** How many sockets controller `id` has open right now. */
+  private online(id: string, except?: WebSocket) {
+    return this.ctx.getWebSockets().filter((s) => s !== except && (s.deserializeAttachment() as Tag).ctrl === id).length;
+  }
+
   private controllers(except?: WebSocket) {
     return this.ctx.getWebSockets().filter((s) => {
       const t = s.deserializeAttachment() as Tag;
@@ -584,14 +768,19 @@ export class Game extends DurableObject<Env> {
       rounds: g.rounds ?? OLD_GAME.rounds,
       entries: g.entries ?? OLD_GAME.entries,
       teamMax: g.teamMax ?? OLD_GAME.teamMax,
+      teamPrize: g.teamPrize ?? OLD_GAME.teamPrize,
       reveal: g.reveal,
       ruleStep: g.ruleStep ?? 0,
       up: g.up ?? null,
       away: g.away ?? { distance: [], bin: [] },
       canRestore: forHost ? g.trash?.name ?? null : null,
       controllers: this.controllers(closing),
-      players: g.players.map(({ token, code, ...rest }) => (forHost ? { ...rest, code } : rest)),
+      // Device data never leaves the server. Hosts see only a "looks like the same phone as" flag.
+      players: g.players.map(({ token, code, device, fp, net, teamsMade, ...rest }) => (forHost ? { ...rest, code, twin: this.twins(g, rest.id) } : rest)),
       teams: g.teams ?? [],
+      // host screens only: who can control the event, and the invite code for adding another phone
+      ctrl: forHost ? (g.controllers ?? []).map(({ id, name, admin }) => ({ id, name, admin, online: this.online(id, closing) })) : [],
+      invite: forHost ? g.invite : undefined,
     };
   }
 

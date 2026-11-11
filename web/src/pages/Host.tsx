@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import { createGame, store, useGame } from "../api";
 import { score } from "../scoring";
 import { DEFAULT_SETUP, EVENT } from "../config";
-import { phasesFor, modeOf, teamOf, throwOrder } from "../mode";
+import { phasesFor, modeOf, teamOf } from "../mode";
 import { SetupPicker, describeSetup } from "../components/SetupPicker";
 import { idNumber } from "../queue";
 import { PHASE_SLUG, phaseFromSlug, type GameState, type Setup } from "../types";
@@ -19,6 +19,7 @@ import { Podium } from "../components/Podium";
 import { useDialog } from "../components/Dialog";
 import { useWakeLock } from "../wakelock";
 import { UpdatePanel } from "../components/UpdatePanel";
+import { Controllers } from "../components/Controllers";
 
 /*
  * The big screen (projector). It only SHOWS what's happening: everything is run from the
@@ -103,7 +104,7 @@ function Splash({ onReady, toast, flash }: { onReady: (c: Creds) => void; toast:
   const [mode, setMode] = useState<"create" | "resume">("create");
   const [password, setPassword] = useState("");
   const [winners, setWinners] = useState(DEFAULT_SETUP.winners);
-  const [setup, setSetup] = useState<Setup>({ rounds: DEFAULT_SETUP.rounds, entries: DEFAULT_SETUP.entries, teamMax: DEFAULT_SETUP.teamMax });
+  const [setup, setSetup] = useState<Setup>({ rounds: DEFAULT_SETUP.rounds, entries: DEFAULT_SETUP.entries, teamMax: DEFAULT_SETUP.teamMax, teamPrize: DEFAULT_SETUP.teamPrize });
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -200,6 +201,7 @@ function Display({
   onLeave: () => void;
 }) {
   const [updates, setUpdates] = useState(false);
+  const [phones, setPhones] = useState(false);
   const dialog = useDialog();
   useWakeLock(); // the projector laptop must not go to sleep mid-event
   const scored = useMemo(() => score(state), [state.players, state.teams, state.rounds, state.entries]);
@@ -318,6 +320,10 @@ function Display({
             <button className="link" onClick={() => window.open(controlUrl, "_blank")}>
               Open the controls on this laptop
             </button>
+            <button className="link" onClick={() => setPhones((v) => !v)}>
+              Control phones ({state.ctrl.filter((c) => c.online).length} connected)
+            </button>
+            {phones && <Controllers state={state} send={send} admin />}
             <button className="link" onClick={() => setUpdates((u) => !u)}>
               Check for updates
             </button>
@@ -431,24 +437,15 @@ function Lobby({ state }: { state: GameState }) {
         </header>
         {state.players.length === 0 && <p className="hand empty big">Names land here as people join…</p>}
         <ul className="tags">
-          <AnimatePresence>
-            {/* team-mates pinned up next to each other */}
-            {[...new Set([...throwOrder(state), ...state.players])].map((p) => (
-              <motion.li
-                key={p.id}
-                layout
-                className="tag"
-                initial={{ scale: 0.2, rotate: -25, opacity: 0 }}
-                animate={{ scale: 1, rotate: tilt(p.id), opacity: 1 }}
-                exit={{ scale: 0.4, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 500, damping: 20 }}
-              >
-                <span className="tag-id">{p.id}</span>
-                <span className="tag-name hand">{p.name}</span>
-                {teamOf(state, p.id) && <span className="tag-team">{teamOf(state, p.id)!.name}</span>}
-              </motion.li>
-            ))}
-          </AnimatePresence>
+          {/* Join order, always: tags never move once pinned up (a team shows as a label on each tag).
+              New tags pop in with a CSS animation that only runs when the tag first mounts. */}
+          {state.players.map((p) => (
+            <li key={p.id} className="tag" style={{ "--tilt": `${tilt(p.id)}deg` } as React.CSSProperties}>
+              <span className="tag-id">{p.id}</span>
+              <span className="tag-name hand">{p.name}</span>
+              {teamOf(state, p.id) && <span className="tag-team">{teamOf(state, p.id)!.name}</span>}
+            </li>
+          ))}
         </ul>
       </section>
     </div>

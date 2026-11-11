@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import QRCode from "qrcode";
 import { level, ordinal, scoreText, type Scored } from "../scoring";
 import type { GameState } from "../types";
-import { binText, isTeam, members, modeOf } from "../mode";
+import { binText, isTeam, members, modeOf, prizeText } from "../mode";
 import { play } from "../sound";
 import { Confetti } from "./Confetti";
 
@@ -69,7 +69,7 @@ export function podiumTies(scored: Scored[], count: number) {
 }
 
 /** Big-screen podium: places count..4 on an honours strip, then 3rd, 2nd, 1st on the podium. */
-export function Podium({ scored, count, reveal, pin, cfg }: { scored: Scored[]; count: number; reveal: number; pin: string; cfg: Pick<GameState, "rounds"> }) {
+export function Podium({ scored, count, reveal, pin, cfg }: { scored: Scored[]; count: number; reveal: number; pin: string; cfg: Pick<GameState, "rounds" | "teamPrize"> }) {
   const mode = modeOf(cfg);
   const winners = winnersOf(scored, count);
   const { shown, suspense } = useRevealShown(reveal, true);
@@ -105,12 +105,13 @@ export function Podium({ scored, count, reveal, pin, cfg }: { scored: Scored[]; 
         className={`winner ${big ? "champion" : ""}`}
         initial={{ y: -160, opacity: 0, rotate: -12, scale: 0.7 }}
         animate={{ y: 0, opacity: 1, rotate: place === 1 ? -2 : place % 2 ? 1.5 : -1.5, scale: 1 }}
-        transition={{ type: "spring", stiffness: 220, damping: 13 }}
+        transition={{ type: "spring", stiffness: 260, damping: 22 }} // lands with one small settle, no jelly
       >
         <span className="spotlight" aria-hidden="true" />
         <span className="place-seal">{w.tied ? `=${ordinal(w.rank)}` : ordinal(place)}</span>
         <span className="winner-name">{w.name}</span>
         {isTeam(w) && <span className="winner-team">{members(w)}</span>}
+        {isTeam(w) && (w.members?.length ?? 0) > 1 && <span className="winner-prize">{prizeText(cfg, w)}</span>}
         <span className="winner-id">{w.id}</span>
         <span className="winner-pts">{scoreText(w, cfg, mode)}</span>
         {mode === "both" && (
@@ -162,7 +163,7 @@ export function Podium({ scored, count, reveal, pin, cfg }: { scored: Scored[]; 
                         className="aw-who"
                         initial={{ x: 60, opacity: 0 }}
                         animate={{ x: 0, opacity: 1 }}
-                        transition={{ type: "spring", stiffness: 260, damping: 18 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 26 }}
                       >
                         <b className="aw-name">{w.name}</b>
                         <small>{w.id}</small>

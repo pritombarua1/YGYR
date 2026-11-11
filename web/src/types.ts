@@ -3,7 +3,9 @@ export type Round = "distance" | "bin";
 /** Who can enter: solo pilots only, teams only, or both. */
 export type Entries = "solo" | "teams" | "both";
 /** Chosen when the game is created; changeable in the control Menu until the first round starts. */
-export type Setup = { rounds: Round[]; entries: Entries; teamMax: number };
+/** What a winning team gets: one prize for the place, shared by the team, or one prize per member. */
+export type TeamPrize = "shared" | "each";
+export type Setup = { rounds: Round[]; entries: Entries; teamMax: number; teamPrize: TeamPrize };
 
 export interface Player {
   id: string;
@@ -12,6 +14,7 @@ export interface Player {
   bins: number | null;
   code?: string; // rejoin code: only sent to host screens
   tiebreak?: number | null; // throw-off distance (metres), only used to split a tie
+  twin?: string[]; // host screens only: other pilots that look like the same phone (a hint, not proof)
 }
 
 /** Players join on their own, then start a team or ask to join one; the captain approves. */
@@ -24,6 +27,14 @@ export interface Team {
   tiebreak?: number | null;
 }
 
+/** A control phone the host has let in (host screens only). Admins logged in with the password. */
+export interface Ctrl {
+  id: string;
+  name: string;
+  admin: boolean;
+  online: number; // open connections right now
+}
+
 export interface GameState {
   pin: string;
   phase: Phase;
@@ -31,6 +42,7 @@ export interface GameState {
   rounds: Round[]; // which challenges run, in order (at least one)
   entries: Entries;
   teamMax: number; // most people in one team
+  teamPrize: TeamPrize;
   reveal: number; // how many of those have been revealed so far
   ruleStep: number;
   up: string | null; // player called to throw right now
@@ -39,6 +51,8 @@ export interface GameState {
   controllers: number; // control phones connected right now
   players: Player[];
   teams: Team[];
+  ctrl: Ctrl[]; // host screens only (empty for players)
+  invite?: string; // host screens only: code in the "add a control phone" link
 }
 
 /** Host screen URLs: /host/lobby, /host/rules, /host/round1-distance, /host/round2-bin, /host/winner */
@@ -57,7 +71,7 @@ export const phaseFromSlug = (slug: string | undefined) =>
 export type ServerMsg =
   | { t: "state"; state: GameState }
   | { t: "you"; id: string | null; token?: string; code?: string }
-  | { t: "host"; ok: boolean; key?: string }
+  | { t: "host"; ok: boolean; key?: string; ctrlKey?: string; ctrlId?: string; admin?: boolean; reason?: string }
   | { t: "error"; message: string; taken?: boolean }
   | { t: "removed"; reason?: "reset" }
   | { t: "nogame" }

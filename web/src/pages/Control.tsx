@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { store, useGame } from "../api";
 import { ordinal, score, scoreText } from "../scoring";
-import { binText, binThrows, finished, modeOf, PHASE_LABEL, teamOf } from "../mode";
+import { binText, binThrows, finished, isTeam, members, modeOf, PHASE_LABEL, prizeCount, prizeText, teamMatches, teamOf } from "../mode";
 import { SetupPicker, describeSetup } from "../components/SetupPicker";
 import { callOrder, hasThrown, isAway, matches, roundStatus } from "../queue";
 import { backStep, nextStep, type Step } from "../flow";
@@ -14,6 +14,7 @@ import { Leaderboard } from "../components/Leaderboard";
 import { EditPlayer, type Fix } from "../components/EditPlayer";
 import { ReadmeSheet } from "../components/Readme";
 import { UpdatePanel } from "../components/UpdatePanel";
+import { Controllers } from "../components/Controllers";
 import { podiumTies, winnersOf } from "../components/Podium";
 
 /*
@@ -22,7 +23,12 @@ import { podiumTies, winnersOf } from "../components/Podium";
  * Several phones (or the laptop) can be controls at once; they all see the same thing.
  */
 
-type ControlCreds = { pin: string; password: string };
+/**
+ * What this phone remembers. `key` is its own controller key from the server: after the first login it
+ * reconnects with that alone, so when the host removes this phone it stays removed. `password` is kept
+ * only for the Update button (the laptop's updater asks for it); `invite` = joined from the host's link.
+ */
+type ControlCreds = { pin: string; password: string; name: string; key?: string; id?: string; invite?: string; admin?: boolean };
 type Send = (m: any) => void;
 type Undo = { key: number; label: string; restore: object[] };
 
@@ -30,6 +36,8 @@ export default function Control() {
   const [creds, setCreds] = useState(() => store.get<ControlCreds>("pp:control"));
   const [pin, setPin] = useState(() => new URLSearchParams(location.search).get("pin") ?? creds?.pin ?? "");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState(() => creds?.name ?? store.get<string>("pp:control-name") ?? "");
+  const invite = new URLSearchParams(location.search).get("invite")?.toUpperCase() ?? "";
   const [error, setError] = useState("");
 
   // a control link for a different game replaces the remembered one
@@ -57,9 +65,22 @@ export default function Control() {
 
   const { state, online, send } = useGame(
     creds?.pin ?? null,
-    () => ({ t: "hello", role: "host", as: "control", password: creds?.password }),
+    () =>
+      creds?.key
+        ? { t: "hello", role: "host", as: "control", ctrlKey: creds.key }
+        : { t: "hello", role: "host", as: "control", password: creds?.password, invite: creds?.invite, name: creds?.name },
     (m) => {
-      if (m.t === "host" && !m.ok) logout("Wrong PIN or password.");
+      if (m.t === "host" && m.ok && m.ctrlKey && creds && (m.ctrlKey !== creds.key || m.ctrlId !== creds.id || !!m.admin !== !!creds.admin)) {
+        const c = { ...creds, key: m.ctrlKey, id: m.ctrlId, admin: !!m.admin };
+        store.set("pp:control", c);
+        setCreds(c);
+      }
+      if (m.t === "host" && !m.ok)
+        logout(
+          m.reason === "removed"
+            ? "The host took this phone off the controls. Ask them for an invite link, or log in with the host password."
+            : (m.reason ?? (creds?.invite ? "That invite link doesn't work any more. Ask the host for the new one." : "Wrong PIN or password.")),
+        );
       if (m.t === "nogame") logout(`There's no game with PIN ${creds?.pin}.`);
       if (m.t === "error") flash(m.message);
       if (m.t === "stale") flash("Already done (that tap arrived after the event moved on), so it was ignored.");
@@ -80,16 +101,27 @@ export default function Control() {
             onSubmit={(e) => {
               e.preventDefault();
               if (!/^\d{4}$/.test(pin)) return setError("The PIN is the 4 digits on the big screen.");
+              if (!invite && !password) return setError("Type the host password (or scan an invite QR from the host).");
               setError("");
-              const c = { pin, password };
+              const who = name.trim().slice(0, 20);
+              store.set("pp:control-name", who);
+              const c: ControlCreds = { pin, password: invite ? "" : password, name: who, invite: invite || undefined };
               store.set("pp:control", c);
               setCreds(c);
             }}
           >
             <label htmlFor="cpin">Game PIN</label>
             <input id="cpin" className="pin-input" inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="0000" />
-            <label htmlFor="cpw">Host password</label>
-            <input id="cpw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <label htmlFor="cname">Your name (so the host knows whose phone this is)</label>
+            <input id="cname" maxLength={20} autoComplete="given-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Sam" />
+            {invite ? (
+              <p className="notice">You were invited by the host: no password needed.</p>
+            ) : (
+              <>
+                <label htmlFor="cpw">Host password</label>
+                <input id="cpw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              </>
+            )}
             {error && <p className="error">{error}</p>}
             <button className="btn red">Take control</button>
           </form>
@@ -112,7 +144,18 @@ export default function Control() {
     );
   }
 
-  return <ControlApp state={state} online={online} send={send} toast={toast} flash={flash} password={creds.password} onLogout={() => logout()} />;
+  return (
+    <ControlApp
+      state={state}
+      online={online}
+      send={send}
+      toast={toast}
+      flash={flash}
+      password={creds.password}
+      me={{ id: creds.id ?? "", admin: !!creds.admin }}
+      onLogout={() => logout()}
+    />
+  );
 }
 
 const describe = (m: any, p: Player) => {
@@ -137,6 +180,7 @@ function ControlApp({
   toast,
   flash,
   password,
+  me,
   onLogout,
 }: {
   state: GameState;
@@ -145,6 +189,7 @@ function ControlApp({
   toast: string;
   flash: (m: string) => void;
   password: string;
+  me: { id: string; admin: boolean };
   onLogout: () => void;
 }) {
   const dialog = useDialog();
@@ -309,6 +354,7 @@ function ControlApp({
           onGuide={() => (setMenu(false), setGuide(true))}
           onLogout={onLogout}
           password={password}
+          me={me}
         />
       )}
       {guide && <ReadmeSheet onClose={() => setGuide(false)} />}
@@ -389,15 +435,21 @@ function TeamEdit({ t, state, send, onEdit, onClose }: { t: Team; state: GameSta
 
 /** Teams so far (lobby): who's in, who's waiting for the captain. */
 function TeamsPanel({ state, onEdit }: { state: GameState; onEdit: (id: string) => void }) {
+  const [query, setQuery] = useState("");
   if (state.entries === "solo") return null;
   const name = (id: string) => state.players.find((p) => p.id === id)?.name ?? id;
+  const shown = state.teams.filter((t) => teamMatches(state, t, query));
   const loners = state.players.filter((p) => !teamOf(state, p.id));
   return (
     <section className="panel sheet">
-      <h3 className="display">Teams ({state.teams.length})</h3>
+      <header className="pilots-head">
+        <h3 className="display">Teams ({state.teams.length})</h3>
+        {state.teams.length > 0 && <Search value={query} onChange={setQuery} placeholder="Team, ID or member" label="Search teams" />}
+      </header>
+      {state.teams.length > 0 && shown.length === 0 && <p className="hand empty">No team matches "{query}".</p>}
       {state.teams.length === 0 && <p className="hint">Nobody has started a team yet. Players do it on their own phone after joining.</p>}
       <ul className="pilot-list">
-        {state.teams.map((t) => (
+        {shown.map((t) => (
           <li key={t.id}>
             <span className="pl-id">{t.id}</span>
             <span className="pl-name">
@@ -437,6 +489,12 @@ function LobbyPanel({ state, onEdit }: { state: GameState; onEdit: (id: string) 
         </p>
         <p className="setup-sum">{describeSetup(state)}</p>
         <p className="hint">Change the challenges or teams in Menu (until the first round starts).</p>
+        {state.players.some((p) => p.twin) && (
+          <p className="notice">
+            {state.players.filter((p) => p.twin).length} passes look like they're from the same phone (marked ⚠ below). Often it's two friends with the same
+            phone model, so ask before removing anyone.
+          </p>
+        )}
       </section>
       <TeamsPanel state={state} onEdit={onEdit} />
       <PilotList state={state} onEdit={onEdit} />
@@ -623,6 +681,11 @@ function PilotList({ state, onEdit, act, send, round }: { state: GameState; onEd
               <span className="pl-name">
                 {p.name}
                 {teamOf(state, p.id) && <small className="pl-team">{teamOf(state, p.id)!.name}</small>}
+                {p.twin && (
+                  <small className="pl-twin" title="Same phone hardware on the same network. Could be a second pass, or just the same phone model.">
+                    ⚠ same phone as {p.twin.map((id) => state.players.find((o) => o.id === id)?.name ?? id).join(", ")}?
+                  </small>
+                )}
               </span>
               {round && (
                 <span className="pl-status">
@@ -731,7 +794,14 @@ function WinnersPanel({ state, send, onEdit }: { state: GameState; send: Send; o
                   <span className="pl-name">
                     {w.name} {w.tied && <em>(tied)</em>}
                   </span>
-                  <span className="pl-status">{scoreText(w, state, mode)}</span>
+                  <span className="pl-status">
+                    {scoreText(w, state, mode)}
+                    {isTeam(w) && (
+                      <small className="pl-team">
+                        {members(w)} · {prizeText(state, w)}
+                      </small>
+                    )}
+                  </span>
                   <button className="btn" onClick={() => onEdit(w.id)}>
                     Edit
                   </button>
@@ -743,6 +813,12 @@ function WinnersPanel({ state, send, onEdit }: { state: GameState; send: Send; o
           ))}
         </ol>
         <p className="hint">Only you see this list in advance. The big screen keeps it secret until each reveal.</p>
+        {winners.length > 0 && (
+          <p className="setup-sum">
+            Prizes to hand out: {winners.slice(0, state.winners).reduce((n, w) => n + prizeCount(state, w), 0)}
+            {winners.some((w) => isTeam(w)) && ` (${state.teamPrize === "each" ? "winning teams: one per member" : "winning teams share one"}; change it in Menu)`}
+          </p>
+        )}
       </section>
     </>
   );
@@ -777,6 +853,7 @@ function Menu({
   onGuide,
   onLogout,
   password,
+  me,
 }: {
   state: GameState;
   send: Send;
@@ -786,6 +863,7 @@ function Menu({
   onGuide: () => void;
   onLogout: () => void;
   password: string;
+  me: { id: string; admin: boolean };
 }) {
   const dialog = useDialog();
   const resultsUrl = `${location.origin}/results?pin=${state.pin}`;
@@ -813,11 +891,12 @@ function Menu({
 
         <h3>Challenges and teams</h3>
         <SetupPicker
-          value={{ rounds: state.rounds, entries: state.entries, teamMax: state.teamMax }}
+          value={{ rounds: state.rounds, entries: state.entries, teamMax: state.teamMax, teamPrize: state.teamPrize }}
           locked={state.phase !== "lobby" && state.phase !== "rules"}
+          noShrink={state.teams.length > 0}
           onChange={(setup) => send({ t: "settings", setup })}
         />
-        {state.phase !== "lobby" && state.phase !== "rules" && <p className="hint">Locked: the first round has started.</p>}
+        {state.phase !== "lobby" && state.phase !== "rules" && <p className="hint">Challenges are locked now the first round has started (team size can still go up).</p>}
 
         {state.canRestore && (
           <>
@@ -843,6 +922,10 @@ function Menu({
         <button className="btn" onClick={onGuide}>
           Guide (README)
         </button>
+
+        <h3>Control phones</h3>
+        <Controllers state={state} send={send} me={me.id} admin={me.admin} />
+        {!me.admin && <p className="hint">You joined with an invite link: you can run the event; the host manages this list.</p>}
 
         <h3>Updates</h3>
         <UpdatePanel password={password} />

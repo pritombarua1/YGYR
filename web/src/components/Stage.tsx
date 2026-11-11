@@ -6,7 +6,7 @@ import type { GameState } from "../types";
 import { binText, binThrows, modeOf, PHASE_LABEL, roundKicker, teamOf } from "../mode";
 import { SCORING } from "../config";
 import { play } from "../sound";
-import { LandingStamp, useLanding } from "./CallCard";
+import { LandingStamp, useLanding } from "./Landing";
 import { BinDrop, useBinDrops } from "./BinDrop";
 import { Leaderboard } from "./Leaderboard";
 import { Plane } from "./Plane";
@@ -22,11 +22,15 @@ export function Stage({ state, scored }: { state: GameState; scored: Scored[] })
   const last = state.rounds[state.rounds.length - 1] === state.phase;
   const nextRound = state.rounds[state.rounds.indexOf(state.phase as "distance" | "bin") + 1];
   const order = callOrder(state);
-  const up = order[0];
-  const crew = up ? teamOf(state, up.id) : null;
-  const next = order.slice(1, 4);
   const status = roundStatus(state);
   const landing = useLanding(state.players);
+  // The landing moment comes first: the pilot who just threw stays on stage under the stamp,
+  // and the next name slides in only once it's over (the server has already called them).
+  const landed = landing && !isBin ? state.players.find((p) => p.id === landing.id) : undefined;
+  const up = landed ?? order[0];
+  const crew = up ? teamOf(state, up.id) : null;
+  const next = (landed ? order : order.slice(1)).filter((p) => p.id !== up?.id).slice(0, 3);
+  const complete = status.complete && !landed;
   const drops = useBinDrops(state.players);
 
   useEffect(() => {
@@ -39,7 +43,7 @@ export function Stage({ state, scored }: { state: GameState; scored: Scored[] })
   return (
     <div className="stage-wrap">
       <section className="stage sheet">
-        {status.complete ? (
+        {complete ? (
           <motion.div className="stage-done" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
             <Plane size={160} />
             <strong className="display">{state.rounds.length > 1 ? `${roundKicker(state, state.phase as "distance" | "bin")} complete!` : "Everyone has flown!"}</strong>

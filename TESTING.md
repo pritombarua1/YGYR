@@ -42,6 +42,11 @@ Do this once on the real Wi-Fi (or hotspot), with the projector and 3 phones: on
 - [ ] New game with **Bin throw** only: 5 throws per entry, podium shows "4/5 in".
 - [ ] Control **Menu → Challenges and teams** is greyed out once the first round has started.
 
+## Control phones and prizes
+- [ ] Control **Menu → Control phones → Add a control phone**: a second phone scans the QR, types a name, and is in without the password. It shows as "helper".
+- [ ] **Remove** it: that phone goes back to the login screen straight away and its old QR doesn't work.
+- [ ] **If a team wins** (Menu): pick the option you'll use today. The winners list on the control phone says how many prizes to hand out.
+
 ## Updates
 - [ ] Laptop corner **Menu → Check for updates** says "Up to date" (or lists new updates).
 

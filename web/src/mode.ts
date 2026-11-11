@@ -35,6 +35,24 @@ type TeamCfg = Pick<GameState, "teams" | "entries">;
 export const teamOf = (s: TeamCfg, playerId: string): Team | null =>
   s.entries === "solo" ? null : ((s.teams ?? []).find((t) => t.members.includes(playerId)) ?? null);
 
+/** Team search: by team name, team ID ("02", "team-02") or anyone's name in it. */
+export function teamMatches(s: Pick<GameState, "players">, t: Team, query: string) {
+  const q = query.trim().toLowerCase().replace(/^team[\s-]*/, "");
+  if (!q) return true;
+  const num = t.id.replace(/\D/g, "");
+  const names = t.members.map((id) => s.players.find((p) => p.id === id)?.name.toLowerCase() ?? "");
+  return t.name.toLowerCase().includes(q) || num.includes(q) || String(Number(num)) === q || names.some((n) => n.includes(q));
+}
+
+/** What a winning entry gets, for the host and the big screen: "1 prize", "1 prize, shared by 3", "3 prizes (one each)". */
+export function prizeText(s: Pick<GameState, "teamPrize">, e: { members?: unknown[] }) {
+  const n = e.members?.length ?? 0;
+  if (!n) return "1 prize";
+  if (n === 1) return "1 prize";
+  return s.teamPrize === "each" ? `${n} prizes (one each)` : `1 prize, shared by ${n}`;
+}
+export const prizeCount = (s: Pick<GameState, "teamPrize">, e: { members?: unknown[] }) => (s.teamPrize === "each" ? Math.max(1, e.members?.length ?? 1) : 1);
+
 /** A scored entry is a team when it has members. */
 export const isTeam = (e: { members?: unknown[] }) => !!e.members;
 export const members = (e: { members?: { name: string }[] }) => (e.members ?? []).map((m) => m.name).join(", ");

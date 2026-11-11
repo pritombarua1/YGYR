@@ -51,13 +51,27 @@ Set these on the **Create game** screen. You can change them in the control **Me
 
 **How teams work.** Everyone joins on their own phone, as themselves. Then, on their pass (in the Lobby or during the Rules):
 - **Start a team**: type a name. You're the **captain**.
-- **Ask to join** a team from the list. The captain's phone pops up the request (with a sound) and they tap **Accept** or **Decline**. You can cancel while you wait.
-- The captain can **Remove** members. Anyone can **Leave team**; if the captain leaves, the next member becomes captain.
+- **Ask to join** a team from the list (search it by team name or a friend's name). The captain's phone pops up the request (with a sound) and they tap **Accept** or **Decline**. You can cancel while you wait.
+- The captain can **Remove** members. Anyone can **Leave team**; if the captain leaves, the next member becomes captain, and when the last person leaves the team is deleted.
+- Team-mates can each fold their own plane or pass one plane along the team: their choice.
+- **Team size** can be raised at any time (control **Menu**), but never lowered once a team exists, so nobody gets pushed out. Requests still waiting when the first round starts are cleared.
 - Teams lock when the first round starts. The host can still fix anything: **Edit** a player to move them into a team, take them out or start a new team, without the captain's OK. In the control Lobby, **Teams** → **Edit** renames a team or breaks it up.
 
 Teams are called **in team formation**: when a team comes up, its members throw one after another, and the big screen shows the whole team with who's done, who's throwing and who's next. In **Teams only** events, players who aren't in a team aren't called; the control phone lists them.
 
 **Fair for solo pilots.** Everyone throws, and a team scores the **average** of its members (anyone who didn't throw isn't counted). A team of 4 is on exactly the same scale as a solo pilot, so being bigger doesn't help. The leaderboard and podium show teams as one entry.
+
+## Prizes: teams and individuals
+
+Every place (1st, 2nd, 3rd …) is one entry: a solo pilot **or** a team.
+
+| Who takes the place | What they get |
+|---|---|
+| A solo pilot | The prize for that place |
+| A team, set to **One prize, shared** (default) | One prize for the place, shared by the team |
+| A team, set to **A prize each** | One prize for every member of the team |
+
+Choose it when creating the game (**If a team wins**), or change it any time in the control **Menu**, even during the event. The rules slide says which it is, the podium card says "1 prize, shared by 3" or "3 prizes (one each)", and the control phone's winners list shows **how many prizes to hand out**. Everyone in a winning team gets the celebration on their phone. Everyone who took part gets a thank-you, not a "you lost" message, and snacks are for everyone.
 
 ## Scoring (both challenges on)
 
@@ -135,6 +149,29 @@ The bottom of the control phone always has **← Back** and **Next →**, labell
 
 Short sound effects live in `web/public/sfx/` (`up`, `next`, `land`, `bin`, `whoosh`, `tear`, `drumroll`, `reveal`, `fanfare`, `pop`, `cheer`). Replace any `.mp3` to change it. If a file is missing, a built-in synthesised version plays instead. Phones have a sound on/off button; the big screen's is in its corner Menu. There's no background music track.
 
+## Fair play and limits
+
+It's a public event, so the game server protects itself:
+
+| | |
+|---|---|
+| One pass per person | Each browser keeps a random device key. Joining again from the same browser gives back the same pass, never a second pilot |
+| Switching browsers | Each phone also sends a short **hash** of its hardware (screen, cores, memory, graphics chip, time zone). Two passes with the same hash on the same network get a **⚠ same phone as …?** flag on the control phone. It's a hint, not a block: two friends with the same phone model on the same Wi-Fi look alike, so ask before removing anyone |
+| Message flood | Every connection has a small allowance of messages that refills each second (players about 2 a second, control phones about 15). Beyond that, taps are dropped with "Give it a second" |
+| Join flood | At most 80 new players per network every 5 minutes (high, because a whole class on the campus Wi-Fi shares one address), 300 players per game, 100 teams, and each player can start at most 6 teams |
+| Big messages | Anything over 4 KB is ignored |
+| Privacy | Internet addresses are stored only as one-way hashes, the hardware hash can't be turned back into details, and nothing about devices is ever sent to players. It all disappears with the game (12 hours) |
+
+The limits are in `LIMITS` at the top of `worker/src/index.ts`.
+
+## Control phones
+
+The host decides who can run the event, and can change it any time (control **Menu → Control phones**, or the laptop's corner **Menu → Control phones**):
+- **Host password**: whoever logs in with it is a **host** and can manage the list.
+- **Add a control phone**: shows an invite QR. A helper scans it and is in, **no password needed**. Helpers can run the event but can't manage the list.
+- **Remove**: that phone is cut off straight away. Removing a helper also replaces the invite link, so their old link can't get them back in. **New invite link** does the same by hand.
+- Each phone is remembered by its own key, so a reconnect never needs the password again, and a removed phone stays removed.
+
 ## Run it locally (development)
 
 ```bash
@@ -146,6 +183,16 @@ npm run dev
 ```
 
 Worker on port 8787, web app on 5173. Open `http://localhost:5173/host`. For real phones, use the laptop's *Network* address Vite prints (or a phone hotspot).
+
+**Tests.** `tests/server.test.mjs` plays whole games against a local server: every challenge mode, teams and their edge cases, control phones and fair play (about 145 checks). Start a test server, then run the tests:
+
+```bash
+npx -w worker wrangler dev --port 8788 --var HOST_PASSWORD:plane-test --persist-to ../.wrangler-test
+```
+
+```bash
+npm test
+```
 
 ## Deploy to Cloudflare (free, permanent link)
 

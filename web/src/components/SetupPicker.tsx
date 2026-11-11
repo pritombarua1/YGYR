@@ -20,7 +20,17 @@ export function describeSetup(s: Setup) {
  * Which challenges run and who can enter. Used when creating a game and in the control Menu
  * (where it is locked once the first round has started).
  */
-export function SetupPicker({ value, onChange, locked }: { value: Setup; onChange: (s: Setup) => void; locked?: boolean }) {
+export function SetupPicker({
+  value,
+  onChange,
+  locked,
+  noShrink,
+}: {
+  value: Setup;
+  onChange: (s: Setup) => void;
+  locked?: boolean; // challenges + who can enter: fixed once the first round starts
+  noShrink?: boolean; // teams exist: team size can still grow, never shrink
+}) {
   const toggle = (r: Round) => {
     const on = value.rounds.includes(r);
     if (on && value.rounds.length === 1) return; // at least one challenge
@@ -80,17 +90,43 @@ export function SetupPicker({ value, onChange, locked }: { value: Setup; onChang
       {value.entries !== "solo" && (
         <div className="winners-pick">
           <span>Team size up to</span>
-          <button type="button" className="btn" disabled={locked || value.teamMax <= MIN_TEAM} onClick={() => onChange({ ...value, teamMax: value.teamMax - 1 })} aria-label="Smaller teams">
+          <button type="button" className="btn" disabled={noShrink || value.teamMax <= MIN_TEAM} onClick={() => onChange({ ...value, teamMax: value.teamMax - 1 })} aria-label="Smaller teams">
             −
           </button>
           <strong>{value.teamMax}</strong>
-          <button type="button" className="btn" disabled={locked || value.teamMax >= MAX_TEAM} onClick={() => onChange({ ...value, teamMax: value.teamMax + 1 })} aria-label="Bigger teams">
+          <button type="button" className="btn" disabled={value.teamMax >= MAX_TEAM} onClick={() => onChange({ ...value, teamMax: value.teamMax + 1 })} aria-label="Bigger teams">
             +
           </button>
+          {noShrink && <small>Teams have formed: it can go up, not down.</small>}
         </div>
       )}
+
+      {value.entries !== "solo" && (
+        <>
+          <span className="setup-k">If a team wins</span>
+          <div className="seg" role="radiogroup" aria-label="If a team wins">
+            {(
+              [
+                ["shared", "One prize, shared"],
+                ["each", "A prize each"],
+              ] as const
+            ).map(([k, label]) => (
+              <button
+                type="button"
+                key={k}
+                role="radio"
+                aria-checked={value.teamPrize === k}
+                className={value.teamPrize === k ? "on" : ""}
+                onClick={() => onChange({ ...value, teamPrize: k })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       <p className="setup-sum">{describeSetup(value)}</p>
-      <p className="hint">Players join on their own, then start a team or ask to join one (the captain approves). Team-mates are called one after another; a team scores the average of its members.</p>
+      <p className="hint">Players join on their own, then start a team or ask to join one (the captain approves). Team-mates are called one after another (own planes or one shared plane, their choice); a team scores the average of its members.</p>
     </div>
   );
 }
