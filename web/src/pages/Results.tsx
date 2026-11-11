@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { store, useGame } from "../api";
 import { entryFor, ordinal, place, score, scoreText } from "../scoring";
-import { binText, isTeam, members, modeOf } from "../mode";
+import { binText, modeOf, teamLabel } from "../mode";
 import { matches } from "../queue";
 import { EVENT } from "../config";
 import { Search } from "../components/Inputs";
@@ -63,10 +63,8 @@ export default function Results() {
 
   const winners = winnersOf(scored, state.winners);
   const mine = me ? entryFor(scored, me) : undefined;
-  // a team row is found by its own name/ID or by anyone's name in it
-  const rows = scored.filter((s) => matches(s, query) || s.members?.some((m) => matches(m, query)));
-  const own = (m: { distance: number | null; bins: number | null }) =>
-    mode === "bin" ? binText(cfg, m.bins) : mode === "distance" ? (m.distance ? `${m.distance.toFixed(2)} m` : "–") : `${m.distance ? m.distance.toFixed(2) : "–"} m, ${binText(cfg, m.bins)}`;
+  // search by name, ID, or team name (so a team finds all its members)
+  const rows = scored.filter((s) => matches(s, query) || (!!s.team && !!query.trim() && s.team.name.toLowerCase().includes(query.trim().toLowerCase())));
 
   return shell(
     <>
@@ -100,7 +98,7 @@ export default function Results() {
                 {w.name}
                 <small>
                   {w.id}
-                  {isTeam(w) && ` · ${members(w)}`}
+                  {w.team && ` · ${teamLabel(w)}`}
                 </small>
               </span>
               <span className="wl-pts">{scoreText(w, cfg, mode)}</span>
@@ -118,7 +116,7 @@ export default function Results() {
           <thead>
             <tr>
               <th>#</th>
-              <th>Pilot / team</th>
+              <th>Pilot</th>
               {mode !== "bin" && <th>Flight</th>}
               {mode !== "distance" && <th>Bin</th>}
               {mode === "both" && <th>Pts</th>}
@@ -132,13 +130,8 @@ export default function Results() {
                   {s.name}
                   <small>
                     {s.id}
-                    {isTeam(s) && ` · team of ${s.members!.length}`}
+                    {s.team && ` · ${teamLabel(s)}`}
                   </small>
-                  {isTeam(s) && (
-                    <small className="member-throws">
-                      {s.members!.map((m) => `${m.name} ${own(m)}`).join(" · ")}
-                    </small>
-                  )}
                 </td>
                 {mode !== "bin" && <td>{s.distance ? `${s.distance.toFixed(2)} m` : "–"}</td>}
                 {mode !== "distance" && <td>{binText(cfg, s.bins)}</td>}

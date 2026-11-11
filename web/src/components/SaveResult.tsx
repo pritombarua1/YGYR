@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { GameState } from "../types";
-import { entryFor, score, scoreText } from "../scoring";
+import { entryFor, ordinal, score, scoreText } from "../scoring";
 import { binText, modeOf, teamOf } from "../mode";
 import { winnersOf } from "./Podium";
 import { saveResult } from "../resultPhoto";
@@ -30,7 +30,7 @@ export function SaveResult({ state, me }: { state: GameState; me: string }) {
         tied: !!entry?.tied && place > 0,
         team: crew ? { name: crew.name, members: crew.members.map((id) => state.players.find((p) => p.id === id)?.name ?? id) } : undefined,
         mine,
-        teamScore: crew && entry ? `${scoreText(entry, state, mode)}${mode === "both" ? "" : " average"}` : undefined,
+        finished: !place && entry ? `Finished ${entry.tied ? "=" : ""}${ordinal(entry.rank)} of ${entry.of}${mode === "both" ? ` · ${scoreText(entry, state, mode)}` : ""}` : undefined,
         pin: state.pin,
       });
       setNote(how === "downloaded" ? "Saved to your downloads." : how === "shared" ? "Done!" : "");

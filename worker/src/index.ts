@@ -64,7 +64,6 @@ interface GameData {
   rounds?: Round[]; // which challenges run, in order (at least one). Older games: both
   entries?: Entries;
   teamMax?: number; // most people in one team
-  teamPrize?: TeamPrize;
   reveal: number; // how many of those places have been revealed so far
   ruleStep?: number; // which rule slide is showing
   up?: string | null; // player currently called to throw
@@ -92,9 +91,7 @@ const MAX_WINNERS = 10;
 const binThrows = (rounds: Round[]) => (rounds.includes("distance") ? 3 : 5);
 const idNum = (id: string) => Number(id.replace(/\D/g, "")) || 0;
 
-// What a winning team gets: one prize for the place, shared ("shared"), or one per member ("each").
-type TeamPrize = "shared" | "each";
-type Setup = { rounds: Round[]; entries: Entries; teamMax: number; teamPrize: TeamPrize };
+type Setup = { rounds: Round[]; entries: Entries; teamMax: number };
 /** Cleans settings from the create screen or the control Menu. Anything missing keeps `base`. */
 function cleanSetup(raw: any, base: Setup): Setup {
   const rounds = Array.isArray(raw?.rounds) ? ROUNDS.filter((r) => raw.rounds.includes(r)) : base.rounds;
@@ -102,11 +99,10 @@ function cleanSetup(raw: any, base: Setup): Setup {
     rounds: rounds.length ? rounds : base.rounds,
     entries: ENTRIES.includes(raw?.entries) ? raw.entries : base.entries,
     teamMax: raw?.teamMax === undefined ? base.teamMax : clampInt(raw.teamMax, MIN_TEAM, MAX_TEAM),
-    teamPrize: raw?.teamPrize === "each" || raw?.teamPrize === "shared" ? raw.teamPrize : base.teamPrize,
   };
 }
-const NEW_GAME: Setup = { rounds: ["distance"], entries: "both", teamMax: 4, teamPrize: "shared" };
-const OLD_GAME: Setup = { rounds: ["distance", "bin"], entries: "solo", teamMax: 4, teamPrize: "shared" }; // games made before these settings existed
+const NEW_GAME: Setup = { rounds: ["distance"], entries: "both", teamMax: 4 };
+const OLD_GAME: Setup = { rounds: ["distance", "bin"], entries: "solo", teamMax: 4 }; // games made before these settings existed
 
 /*
  * Fair share for a public event. Each connection gets a small allowance of messages that refills
@@ -268,7 +264,6 @@ export class Game extends DurableObject<Env> {
     g.rounds ??= OLD_GAME.rounds;
     g.entries ??= OLD_GAME.entries;
     g.teamMax ??= OLD_GAME.teamMax;
-    g.teamPrize ??= OLD_GAME.teamPrize;
     g.teams ??= [];
     g.teamSeq ??= 0;
     g.controllers ??= [];
@@ -468,7 +463,7 @@ export class Game extends DurableObject<Env> {
           g.reveal = Math.min(g.reveal, g.winners);
         }
         if (msg.setup) {
-          const want = cleanSetup(msg.setup, { rounds: g.rounds!, entries: g.entries!, teamMax: g.teamMax!, teamPrize: g.teamPrize! });
+          const want = cleanSetup(msg.setup, { rounds: g.rounds!, entries: g.entries!, teamMax: g.teamMax! });
           // Team size can always grow, but never shrink once a team exists (nobody gets pushed out).
           if (want.teamMax < g.teamMax! && g.teams!.length > 0)
             return this.error(ws, `Teams have started forming, so the team size can only go up (it's ${g.teamMax} now).`);
@@ -770,7 +765,6 @@ export class Game extends DurableObject<Env> {
       rounds: g.rounds ?? OLD_GAME.rounds,
       entries: g.entries ?? OLD_GAME.entries,
       teamMax: g.teamMax ?? OLD_GAME.teamMax,
-      teamPrize: g.teamPrize ?? OLD_GAME.teamPrize,
       reveal: g.reveal,
       ruleStep: g.ruleStep ?? 0,
       up: g.up ?? null,

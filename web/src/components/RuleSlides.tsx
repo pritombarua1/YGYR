@@ -7,7 +7,6 @@ import { binThrows, modeOf, type Mode } from "../mode";
 import type { GameState } from "../types";
 import { PlaneShape } from "./Plane";
 
-const N = SCORING.distancePlaces;
 
 /** Rule text mentions how many win; {W} is filled in with this game's number. */
 export const withWinners = (text: string, winners: number) => text.split("{W}").join(String(winners));
@@ -17,7 +16,7 @@ export const withWinners = (text: string, winners: number) => text.split("{W}").
 
 export type Art = "fold" | "shape" | "team" | "distance" | "bin" | "total";
 export type Rule = { short: string; title: string; text: string; phone: string; art: Art };
-type RuleCfg = Pick<GameState, "rounds" | "entries" | "teamMax"> & Partial<Pick<GameState, "teamPrize">>;
+type RuleCfg = Pick<GameState, "rounds" | "entries" | "teamMax">;
 
 export function rulesFor(cfg: RuleCfg): Rule[] {
   const mode = modeOf(cfg);
@@ -49,8 +48,8 @@ export function rulesFor(cfg: RuleCfg): Rule[] {
       title: cfg.entries === "teams" ? "Teams of 2 to " + cfg.teamMax : "Fly solo or as a team",
       text:
         (cfg.entries === "teams" ? `Teams of up to ${cfg.teamMax}.` : `On your own, or in a team of up to ${cfg.teamMax}.`) +
-        " On your phone: start a team, or ask to join one and the captain lets you in. Everyone throws, one after another: fold your own planes or pass one plane along, your call. A team scores the average of its members, so a big team has no advantage over a solo pilot.",
-      phone: "Start a team or ask to join one. Everyone throws, one after another (own planes or one shared plane). A team scores its average.",
+        " On your phone: start a team, or ask to join one and the captain lets you in. Team-mates are called one after another: fold your own planes or pass one along, your call. Places are won on your own throw, so a team gives you company, not extra points.",
+      phone: "Start a team or ask to join one. Team-mates throw one after another (own planes or a shared one). Places go to your own throw.",
       art: "team",
     });
   if (cfg.rounds.includes("distance"))
@@ -59,9 +58,9 @@ export function rulesFor(cfg: RuleCfg): Rule[] {
       title: mode === "both" ? "Round 1: Distance" : "Who can fly the furthest?",
       text:
         mode === "both"
-          ? `We call your name. Throw once from the line, and we measure to where it stops. The ${N} longest flights score ${N}, ${N - 1} … down to 1.`
+          ? `We call your name. Throw once from the line, and we measure to where it stops. Every flight scores: one point for every flight yours beats, plus one.`
           : "We call your name. Throw once from the line, and we measure to where it stops. The longest flight wins.",
-      phone: mode === "both" ? `When your name is called, throw once from the line. The ${N} longest flights score ${N} down to 1.` : "When your name is called, throw once from the line. Longest flight wins.",
+      phone: mode === "both" ? `When your name is called, throw once from the line. Every flight scores: a point for each flight you beat.` : "When your name is called, throw once from the line. Longest flight wins.",
       art: "distance",
     });
   if (cfg.rounds.includes("bin"))
@@ -75,15 +74,14 @@ export function rulesFor(cfg: RuleCfg): Rule[] {
       phone: mode === "both" ? `${word} throws at the bin. Every plane in scores ${SCORING.binPoints} points.` : `${word} throws at the bin. Most planes in wins.`,
       art: "bin",
     });
-  const teamPrize = teams ? (cfg.teamPrize === "each" ? " A winning team: a prize for everyone in it." : " A winning team shares its prize.") : "";
   rules.push({
     short: mode === "both" ? "Add it up" : "Winners",
     title: mode === "both" ? "Add it up" : "The winners",
     text:
       (mode === "both"
         ? "Distance points + bin points = your total. On a tie, the longer flight wins. "
-        : "Exactly the same result? One more throw each to settle it. ") + PERKS + teamPrize,
-    phone: (mode === "both" ? "Distance + bin = your total. Tie? Longer flight wins. " : "Tie? One more throw each. ") + PERKS + teamPrize,
+        : "Exactly the same result? One more throw each to settle it. ") + PERKS,
+    phone: (mode === "both" ? "Distance + bin = your total. Tie? Longer flight wins. " : "Tie? One more throw each. ") + PERKS,
     art: "total",
   });
   return rules;
@@ -842,7 +840,7 @@ function TeamArt() {
     </g>
   );
   return (
-    <svg viewBox="0 0 420 330" className="art" role="img" aria-label="A team of three, each with a plane, scores their average: the same scale as a solo pilot">
+    <svg viewBox="0 0 420 330" className="art" role="img" aria-label="A team of three and a solo pilot: everyone places on their own throw">
       <Defs />
       <path d="M0 262 H420" stroke={INK} strokeWidth="3" strokeLinecap="round" />
       {/* the team: three figures, only the front one holds the plane */}
@@ -858,9 +856,9 @@ function TeamArt() {
       <g transform="translate(0 30) scale(0.86)">
         <StickMan x={330} y={270} T={T} throws={[0.05, 0.19, 0.27, 0.4]} hand={plane} />
       </g>
-      <text x="96" y="292" textAnchor="middle" className="art-label">team: the average</text>
-      <text x="300" y="292" textAnchor="middle" className="art-label">solo: your throw</text>
-      <text x="210" y="322" textAnchor="middle" className="art-label">same scale, so it's fair</text>
+      <text x="96" y="292" textAnchor="middle" className="art-label">team: fly together</text>
+      <text x="300" y="292" textAnchor="middle" className="art-label">solo: fly alone</text>
+      <text x="210" y="322" textAnchor="middle" className="art-label">everyone places on their own throw</text>
     </svg>
   );
 }

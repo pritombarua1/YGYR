@@ -199,9 +199,9 @@ async function teamEdges() {
   host.send({ t: "remove", id: P.Eve.id });
   await check(() => team("Gliders").requests.length === 0, "removed player's request is dropped");
 
-  host.send({ t: "settings", setup: { rounds: ["distance"], entries: "both", teamMax: 2, teamPrize: "shared" } });
+  host.send({ t: "settings", setup: { rounds: ["distance"], entries: "both", teamMax: 2 } });
   await check(() => /can only go up/.test(lastErr(host)) && host.state.teamMax === 3, "team size can't shrink once teams exist");
-  host.send({ t: "settings", setup: { rounds: ["distance"], entries: "both", teamMax: 5, teamPrize: "shared" } });
+  host.send({ t: "settings", setup: { rounds: ["distance"], entries: "both", teamMax: 5 } });
   await check(() => host.state.teamMax === 5, "team size can grow");
   P.Ann.send({ t: "requestTeam", team: team("Gliders").id });
   await check(() => team("Gliders").requests.includes(P.Ann.id), "Ann asks to join Gliders");
@@ -213,9 +213,9 @@ async function teamEdges() {
   P.Dan.send({ t: "answerRequest", id: P.Ann.id, ok: true });
   await sleep(200);
   await check(() => !team("Gliders").members.includes(P.Ann.id), "can't accept after teams lock");
-  host.send({ t: "settings", setup: { rounds: ["distance"], entries: "both", teamMax: 6, teamPrize: "each" } });
-  await check(() => host.state.teamMax === 6 && host.state.teamPrize === "each", "team size and team prize can still change mid-event");
-  host.send({ t: "settings", setup: { rounds: ["distance", "bin"], entries: "both", teamMax: 6, teamPrize: "each" } });
+  host.send({ t: "settings", setup: { rounds: ["distance"], entries: "both", teamMax: 6 } });
+  await check(() => host.state.teamMax === 6, "team size can still grow mid-event");
+  host.send({ t: "settings", setup: { rounds: ["distance", "bin"], entries: "both", teamMax: 6 } });
   await check(() => /locked/.test(lastErr(host)) && host.state.rounds.join() === "distance", "challenges stay locked");
 }
 

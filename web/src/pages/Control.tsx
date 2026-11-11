@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { store, useGame } from "../api";
 import { ordinal, score, scoreText } from "../scoring";
-import { binText, binThrows, finished, isTeam, members, modeOf, PHASE_LABEL, prizeCount, prizeText, teamMatches, teamOf } from "../mode";
+import { binText, binThrows, finished, modeOf, PHASE_LABEL, teamLabel, teamMatches, teamOf } from "../mode";
 import { SetupPicker, describeSetup } from "../components/SetupPicker";
 import { callOrder, hasThrown, isAway, matches, roundStatus } from "../queue";
 import { backStep, nextStep, type Step } from "../flow";
@@ -796,11 +796,7 @@ function WinnersPanel({ state, send, onEdit }: { state: GameState; send: Send; o
                   </span>
                   <span className="pl-status">
                     {scoreText(w, state, mode)}
-                    {isTeam(w) && (
-                      <small className="pl-team">
-                        {members(w)} · {prizeText(state, w)}
-                      </small>
-                    )}
+                    {w.team && <small className="pl-team">{teamLabel(w)}</small>}
                   </span>
                   <button className="btn" onClick={() => onEdit(w.id)}>
                     Edit
@@ -815,8 +811,7 @@ function WinnersPanel({ state, send, onEdit }: { state: GameState; send: Send; o
         <p className="hint">Only you see this list in advance. The big screen keeps it secret until each reveal.</p>
         {winners.length > 0 && (
           <p className="setup-sum">
-            Prizes to hand out: {winners.slice(0, state.winners).reduce((n, w) => n + prizeCount(state, w), 0)}
-            {winners.some((w) => isTeam(w)) && ` (${state.teamPrize === "each" ? "winning teams: one per member" : "winning teams share one"}; change it in Menu)`}
+            Prizes to hand out: {Math.min(winners.length, state.winners)} (one per place, to the person who threw it)
           </p>
         )}
       </section>
@@ -891,13 +886,12 @@ function Menu({
 
         <h3>Rounds and teams</h3>
         <SetupPicker
-          value={{ rounds: state.rounds, entries: state.entries, teamMax: state.teamMax, teamPrize: state.teamPrize }}
+          value={{ rounds: state.rounds, entries: state.entries, teamMax: state.teamMax }}
           locked={state.phase !== "lobby" && state.phase !== "rules"}
           noShrink={state.teams.length > 0}
-          winners={state.winners}
           onChange={(setup) => send({ t: "settings", setup })}
         />
-        {state.phase !== "lobby" && state.phase !== "rules" && <p className="hint">Rounds are locked now the first round has started (team size and team prizes can still change).</p>}
+        {state.phase !== "lobby" && state.phase !== "rules" && <p className="hint">Rounds are locked now the first round has started (team size can still go up).</p>}
 
         {state.canRestore && (
           <>

@@ -104,7 +104,7 @@ function Splash({ onReady, toast, flash }: { onReady: (c: Creds) => void; toast:
   const [mode, setMode] = useState<"create" | "resume">("create");
   const [password, setPassword] = useState("");
   const [winners, setWinners] = useState(DEFAULT_SETUP.winners);
-  const [setup, setSetup] = useState<Setup>({ rounds: DEFAULT_SETUP.rounds, entries: DEFAULT_SETUP.entries, teamMax: DEFAULT_SETUP.teamMax, teamPrize: DEFAULT_SETUP.teamPrize });
+  const [setup, setSetup] = useState<Setup>({ rounds: DEFAULT_SETUP.rounds, entries: DEFAULT_SETUP.entries, teamMax: DEFAULT_SETUP.teamMax });
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -173,7 +173,7 @@ function Splash({ onReady, toast, flash }: { onReady: (c: Creds) => void; toast:
               <small>3 to 10, you can change it later</small>
             </div>
           )}
-          {mode === "create" && <SetupPicker value={setup} onChange={setSetup} winners={winners} />}
+          {mode === "create" && <SetupPicker value={setup} onChange={setSetup} />}
           <button className="btn red big" disabled={busy}>
             {busy ? "Opening the gate…" : mode === "create" ? "Create game" : "Resume game"}
           </button>

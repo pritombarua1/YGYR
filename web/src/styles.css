@@ -4335,24 +4335,11 @@ textarea {
   color: var(--red);
 }
 
-.winner-prize {
-  font-family: var(--num);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 0.95em;
-  color: var(--red);
-}
 
 .host-pin.closed {
   background: var(--red);
 }
 
-.setup-warn {
-  color: var(--red);
-  font-weight: 600;
-  max-width: 34em;
-}
 
 .save-result {
   display: flex;
@@ -4361,9 +4348,3 @@ textarea {
   gap: 4px;
 }
 
-.member-throws {
-  display: block;
-  color: var(--ink-soft);
-  font-size: 12px;
-  white-space: normal;
-}

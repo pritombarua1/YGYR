@@ -25,13 +25,11 @@ export function SetupPicker({
   onChange,
   locked,
   noShrink,
-  winners = 3,
 }: {
   value: Setup;
   onChange: (s: Setup) => void;
   locked?: boolean; // challenges + who can enter: fixed once the first round starts
   noShrink?: boolean; // teams exist: team size can still grow, never shrink
-  winners?: number; // how many places win: for the prize totals
 }) {
   const toggle = (r: Round) => {
     const on = value.rounds.includes(r);
@@ -103,37 +101,8 @@ export function SetupPicker({
         </div>
       )}
 
-      {value.entries !== "solo" && (
-        <>
-          <span className="setup-k">If a team wins</span>
-          {value.teamPrize === "each" && (
-            <small className="setup-warn">
-              Every member of a winning team gets a prize: with {winners} winning teams of {value.teamMax} that's {winners * value.teamMax} prizes. Have enough ready.
-            </small>
-          )}
-          <div className="seg" role="radiogroup" aria-label="If a team wins">
-            {(
-              [
-                ["shared", `One prize, shared (${winners} prizes)`],
-                ["each", `A prize each (up to ${winners * value.teamMax})`],
-              ] as const
-            ).map(([k, label]) => (
-              <button
-                type="button"
-                key={k}
-                role="radio"
-                aria-checked={value.teamPrize === k}
-                className={value.teamPrize === k ? "on" : ""}
-                onClick={() => onChange({ ...value, teamPrize: k })}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
       <p className="setup-sum">{describeSetup(value)}</p>
-      <p className="hint">Players join on their own, then start a team or ask to join one (the captain approves). Team-mates are called one after another (own planes or one shared plane, their choice); a team scores the average of its members.</p>
+      <p className="hint">Players join on their own, then start a team or ask to join one (the captain approves). Team-mates are called one after another (own planes or a shared one). Places go to each person's own throw, so prizes are one per place.</p>
     </div>
   );
 }

@@ -59,30 +59,20 @@ Set these on the **Create game** screen. You can change them in the control **Me
 
 Teams are called **in team formation**: when a team comes up, its members throw one after another, and the big screen shows the whole team with who's done, who's throwing and who's next. In **Teams only** events, players who aren't in a team aren't called; the control phone lists them.
 
-**Fair for solo pilots.** Everyone throws, and a team scores the **average** of its members (anyone who didn't throw isn't counted). A team of 4 is on exactly the same scale as a solo pilot, so being bigger doesn't help. The leaderboard and podium show teams as one entry.
+**Places go to people, not teams.** Everyone is ranked on their **own** throw; a team is who you fly with (called together, shown together), not a merged score. Example: a team captain throws 9.00 m, a solo pilot 8.90 m, the captain's team-mates 7 m. The captain is 1st, the solo pilot 2nd, the team-mates place on their own 7 m throws. If anyone (solo or in any team) throws 9.10 m, they're 1st.
 
-## Prizes: teams and individuals
+## Prizes
 
-Every place (1st, 2nd, 3rd …) is one entry: a solo pilot **or** a team.
+One prize per place, always: with 3 winners that's 3 prizes, given to the **person** who threw it (their team is shown next to their name, so the team can come up for the photo). Everyone else sees their own place ("12th of 30") with a thank-you, and snacks are for everyone. The control phone's winners list shows how many prizes to hand out.
 
-| Who takes the place | What they get |
-|---|---|
-| A solo pilot | The prize for that place |
-| A team, set to **One prize, shared** (default) | One prize for the place, shared by the team. The total is always one per place: 3 winners = 3 prizes |
-| A team, set to **A prize each** | One prize for every member of the team. This can add up fast: 3 winning teams of 3 = 9 prizes. The picker shows the worst case, so have enough ready or stay on "shared" |
-
-Choose it when creating the game (**If a team wins**), or change it any time in the control **Menu**, even during the event. The rules slide says which it is, the podium card says "1 prize, shared by 3" or "3 prizes (one each)", and the control phone's winners list shows **how many prizes to hand out**. Everyone in a winning team gets the celebration on their phone. Everyone who took part gets a thank-you, not a "you lost" message, and snacks are for everyone.
-
-## Scoring (both challenges on)
+## Scoring (both rounds on)
 
 | | |
 |---|---|
-| Distance | The 10 longest throws score 10, 9, 8 … 1 (equal throws share points) |
+| Distance | Every flight scores: one point for each flight it beats, plus one (with 30 flights: longest 30, shortest 1; equal flights share points) |
 | Bin | 3 throws, 3 points per plane in the bin (max 9) |
 | Total | Distance + bin. On a tie, the longer flight wins |
 | Winners | You choose 3 to 10 when creating the game (default 3, for the 1st/2nd/3rd prizes; changeable later in the control Menu) |
-
-**With 30 students:** only the 10 longest flights get distance points; the other 20 get 0 for distance but can still win through the bin. To change it, set `distancePlaces` in `web/src/config.ts` (e.g. 30 = every flight scores, but distance then outweighs the bin a lot).
 
 **Exact ties** (same result on what's being ranked): they share the place ("=1st"). The big screen shows **Tie!**, and the control phone shows a **throw-off** box: one more throw each, type the metres, longest wins.
 
@@ -157,11 +147,11 @@ Everyone joins as themselves first (a **Pilot-07** pass), then optionally teams 
 | Where | What you see |
 |---|---|
 | Lobby wall (big screen) | Each person keeps their own name tag, in join order; a team-mate's tag gets the team name under it |
-| Player's phone | Their own pass and own throw, plus the team card (members, captain, requests). Points and rank are the **team's** |
+| Player's phone | Their own pass, own throw, own points and place, plus the team card (members, captain, requests) |
 | Control phone | "Everyone" lists people (with their team), and **Teams** lists teams with members and waiting requests (both searchable) |
 | During a round | Team-mates are called one after another; the big screen shows the whole team in formation |
-| Leaderboard, podium, results | The team is **one entry** (its average), with member names. A team-mate never also appears as a solo entry |
-| After the reveal | Every phone gets **📸 Save my result photo**: a ready-to-post picture with their name, place (or "I took part!"), team and throw |
+| Leaderboard, podium, results | One line per person, ranked on their own throw, with "Team Hawks" next to the name. Searching a team name on the results page lists the whole team |
+| After the reveal | Every phone gets **📸 Save my result photo**: a ready-to-post picture with their name, place (winners) or "I took part!" with "Finished 12th of 30", their team and their throw |
 
 ## Fair play and limits
 

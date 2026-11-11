@@ -3,9 +3,7 @@ export type Round = "distance" | "bin";
 /** Who can enter: solo pilots only, teams only, or both. */
 export type Entries = "solo" | "teams" | "both";
 /** Chosen when the game is created; changeable in the control Menu until the first round starts. */
-/** What a winning team gets: one prize for the place, shared by the team, or one prize per member. */
-export type TeamPrize = "shared" | "each";
-export type Setup = { rounds: Round[]; entries: Entries; teamMax: number; teamPrize: TeamPrize };
+export type Setup = { rounds: Round[]; entries: Entries; teamMax: number };
 
 export interface Player {
   id: string;
@@ -42,7 +40,6 @@ export interface GameState {
   rounds: Round[]; // which challenges run, in order (at least one)
   entries: Entries;
   teamMax: number; // most people in one team
-  teamPrize: TeamPrize;
   reveal: number; // how many of those have been revealed so far
   ruleStep: number;
   up: string | null; // player called to throw right now

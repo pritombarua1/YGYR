@@ -12,7 +12,7 @@ export type ResultPhoto = {
   tied?: boolean;
   team?: { name: string; members: string[] };
   mine: string; // their own result, e.g. "9.00 m" or "2/3 in the bin"
-  teamScore?: string; // e.g. "8.80 m average"
+  finished?: string; // not a winner: "Finished 12th of 30"
   pin: string;
 };
 
@@ -199,14 +199,14 @@ export async function drawResult(r: ResultPhoto): Promise<Blob> {
   // results
   ctx.fillStyle = NAVY;
   ctx.font = cond(44, 700);
-  ctx.fillText(r.team ? "MY THROW" : "MY RESULT", W / 2, y + 62);
+  ctx.fillText("MY RESULT", W / 2, y + 62);
   ctx.font = display(90);
   fit(ctx, r.mine, display, 90, cw - 260); // leave room for the seal
   ctx.fillText(r.mine, W / 2, y + 148);
-  if (r.teamScore) {
+  if (r.finished) {
     ctx.font = cond(40, 700);
     ctx.fillStyle = BLUE;
-    ctx.fillText(`TEAM: ${r.teamScore.toUpperCase()}`, W / 2, y + 205);
+    ctx.fillText(r.finished.toUpperCase(), W / 2, y + 205);
   }
 
   // red seal for winners

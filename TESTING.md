@@ -45,7 +45,7 @@ Do this once on the real Wi-Fi (or hotspot), with the projector and 3 phones: on
 ## Control phones and prizes
 - [ ] Control **Menu → Control phones → Add a control phone**: a second phone scans the QR, types a name, and is in without the password. It shows as "helper".
 - [ ] **Remove** it: that phone goes back to the login screen straight away and its old QR doesn't work.
-- [ ] **If a team wins** (Menu): pick the option you'll use today. The winners list on the control phone says how many prizes to hand out.
+- [ ] Winners list on the control phone: one person per place, with their team name, and "Prizes to hand out: 3".
 
 ## Updates
 - [ ] Laptop corner **Menu → Check for updates** says "Up to date" (or lists new updates).

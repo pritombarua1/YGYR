@@ -1,7 +1,7 @@
 import type { Scored } from "../scoring";
 import type { GameState } from "../types";
 import { SCORING } from "../config";
-import { binText, isTeam, members, modeOf } from "../mode";
+import { binText, modeOf, teamLabel } from "../mode";
 
 /**
  * Standings, always strictly sorted by what's shown. With both challenges: distance points in round 1,
@@ -65,7 +65,7 @@ export function Leaderboard({
                 {r.name}
                 <small>
                   {r.id}
-                  {isTeam(r) && ` · ${members(r)}`}
+                  {r.team && ` · ${teamLabel(r)}`}
                 </small>
               </span>
               <span className="row-cols">
@@ -90,7 +90,7 @@ export function Leaderboard({
       )}
       {mode === "both" && show === "distance" && (
         <p className="board-more">
-          The {SCORING.distancePlaces} longest flights score ({SCORING.distancePlaces} → 1). Everyone can still score in the bin.
+          Every flight scores: 1 point for each flight it beats, plus 1. Then the bin round adds {SCORING.binPoints} a plane.
         </p>
       )}
     </div>

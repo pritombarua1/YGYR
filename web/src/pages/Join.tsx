@@ -211,7 +211,7 @@ function PlayerPass({ state, me, online, code, send }: { state: GameState; me: s
   const scored = useMemo(() => score(state), [state.players, state.teams, state.rounds, state.entries]);
   const mode = modeOf(state);
   const person = state.players.find((o) => o.id === me);
-  const p = entryFor(scored, me); // what I score for: my team, or just me (none: teams-only and not in a team)
+  const p = entryFor(scored, me); // my own line (none: teams-only and not in a team)
   const crew = teamOf(state, me);
   const { intro, reveal, done } = usePhaseTransition(state.phase);
   const drops = useBinDrops(state.players, me);
@@ -223,6 +223,12 @@ function PlayerPass({ state, me, online, code, send }: { state: GameState; me: s
   const winners = winnersOf(scored, state.winners);
   const myPlace = p ? winners.findIndex((w) => w.id === p.id) + 1 : 0; // 0 = not a winner
   const meRevealed = state.phase === "winners" && myPlace > 0 && myPlace > state.winners - shown;
+  // a team-mate on the podium (once their place has been revealed)
+  const mateWon = crew
+    ? winners
+        .map((w, i) => ({ name: w.name, id: w.id, place: i + 1 }))
+        .find((w) => w.id !== me && crew.members.includes(w.id) && w.place > state.winners - shown)
+    : undefined;
   const allRevealed = state.phase === "winners" && shown >= state.winners;
 
   // sounds for this player's moments
@@ -295,10 +301,7 @@ function PlayerPass({ state, me, online, code, send }: { state: GameState; me: s
             {code && <span className="pass-hint">Switching phone or browser? Join with your name and this code.</span>}
           </div>
           <div className="pass-stub">
-            <span className="pass-k">
-              {crew ? "Team " : ""}
-              {mode === "both" ? "points" : mode === "distance" ? (crew ? "avg" : "flight") : "in bin"}
-            </span>
+            <span className="pass-k">{mode === "both" ? "Points" : mode === "distance" ? "Flight" : "In bin"}</span>
             <strong className="pass-pts">
               {!p ? "–" : mode === "both" ? <CountUp value={p.total} /> : mode === "distance" ? (p.distance ? p.distance.toFixed(2) : "–") : binText(state, p.bins)}
             </strong>
@@ -327,20 +330,20 @@ function PlayerPass({ state, me, online, code, send }: { state: GameState; me: s
                 </>
               ) : podium ? (
                 <>
-                  <h2 className="display">{myPlace === 1 ? (crew ? "Your team won!" : "You won!") : crew ? "Your team's a winner!" : "You're a winner!"}</h2>
+                  <h2 className="display">{myPlace === 1 ? "You won!" : "You're a winner!"}</h2>
                   <p className="big-place hand">{p?.tied ? placeOf(p) : ordinal(myPlace)} place</p>
-                  {crew && (
-                    <p>
-                      {state.teamPrize === "each"
-                        ? "Everyone in your team gets a prize: go up together!"
-                        : "Your team wins the prize for this place: go up together to collect it."}
-                    </p>
-                  )}
+                  <p>Go up and collect your prize{crew ? `, and take ${crew.name} with you for the photo` : ""}!</p>
                 </>
               ) : (
                 <>
-                  {/* no sad news: everyone who took part gets a thank-you (the full table is one tap away) */}
+                  {/* everyone gets their own result, told kindly */}
                   <h2 className="display">Great flying!</h2>
+                  {p && (
+                    <p className="big-place hand">
+                      {placeOf(p)} of {p.of}
+                    </p>
+                  )}
+                  {mateWon && <p>Your team-mate {mateWon.name} took {ordinal(mateWon.place)} place. Go cheer them on!</p>}
                   <p>{crew ? `Thanks for flying with ${crew.name}.` : "Thanks for taking part."} Snacks are for everyone, so help yourself!</p>
                 </>
               )
@@ -376,7 +379,7 @@ function PlayerPass({ state, me, online, code, send }: { state: GameState; me: s
               <div>
                 <dt>Distance</dt>
                 <dd>{person.distance ? `${person.distance.toFixed(2)} m` : "–"}</dd>
-                {mode === "both" && p && <dd className="tally-pts">{p.distPts} pts{crew ? " (team)" : ""}</dd>}
+                {mode === "both" && p && <dd className="tally-pts">{p.distPts} pts</dd>}
               </div>
             )}
             {state.rounds.includes("bin") && (
@@ -385,7 +388,7 @@ function PlayerPass({ state, me, online, code, send }: { state: GameState; me: s
                 <dd>
                   <Dots n={person.bins} max={binThrows(state)} />
                 </dd>
-                {mode === "both" && p && <dd className="tally-pts">{p.binPts} pts{crew ? " (team)" : ""}</dd>}
+                {mode === "both" && p && <dd className="tally-pts">{p.binPts} pts</dd>}
               </div>
             )}
           </dl>

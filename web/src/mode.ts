@@ -44,18 +44,10 @@ export function teamMatches(s: Pick<GameState, "players">, t: Team, query: strin
   return t.name.toLowerCase().includes(q) || num.includes(q) || String(Number(num)) === q || names.some((n) => n.includes(q));
 }
 
-/** What a winning entry gets, for the host and the big screen: "1 prize", "1 prize, shared by 3", "3 prizes (one each)". */
-export function prizeText(s: Pick<GameState, "teamPrize">, e: { members?: unknown[] }) {
-  const n = e.members?.length ?? 0;
-  if (!n) return "1 prize";
-  if (n === 1) return "1 prize";
-  return s.teamPrize === "each" ? `${n} prizes (one each)` : `1 prize, shared by ${n}`;
-}
-export const prizeCount = (s: Pick<GameState, "teamPrize">, e: { members?: unknown[] }) => (s.teamPrize === "each" ? Math.max(1, e.members?.length ?? 1) : 1);
-
-/** A scored entry is a team when it has members. */
-export const isTeam = (e: { members?: unknown[] }) => !!e.members;
-export const members = (e: { members?: { name: string }[] }) => (e.members ?? []).map((m) => m.name).join(", ");
+/** Someone who flies with a team (their line shows the team name). */
+export const isTeam = (e: { team?: unknown }) => !!e.team;
+/** "Team Paper Hawks", for labels. */
+export const teamLabel = (e: { team?: { name: string } }) => (e.team ? `Team ${e.team.name}` : "");
 
 /**
  * Who throws, in order (the server calls people in exactly this order): join order, except that a

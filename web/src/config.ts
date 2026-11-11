@@ -6,10 +6,7 @@ export const EVENT = {
 };
 
 export const SCORING = {
-  // How many of the longest flights score distance points. With 10: longest = 10, next = 9 … 10th = 1,
-  // everyone after that gets 0 distance points (but can still score in the bin round).
-  // Set it to the class size (e.g. 30) if you want every flight to score something.
-  distancePlaces: 10,
+  // Both rounds on: every flight scores one point for each flight it beats, plus one.
   binPoints: 3, // per plane in the bin (only when both challenges run)
   binThrows: 3, // bin throws per entry when the distance round runs too
   binOnlyThrows: 5, // bin throws when the bin is the only challenge (more throws, fewer ties). Also change worker/src/index.ts
@@ -21,7 +18,6 @@ export const DEFAULT_SETUP = {
   rounds: ["distance"] as ("distance" | "bin")[],
   entries: "both" as "solo" | "teams" | "both",
   teamMax: 4,
-  teamPrize: "shared" as "shared" | "each", // a winning team shares its place's prize (or "each": one per member)
   winners: 3,
 };
 

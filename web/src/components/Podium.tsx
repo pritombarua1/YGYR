@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import QRCode from "qrcode";
 import { level, ordinal, scoreText, type Scored } from "../scoring";
 import type { GameState } from "../types";
-import { binText, isTeam, members, modeOf, prizeText } from "../mode";
+import { binText, modeOf, teamLabel } from "../mode";
 import { play } from "../sound";
 import { Confetti } from "./Confetti";
 
@@ -69,7 +69,7 @@ export function podiumTies(scored: Scored[], count: number) {
 }
 
 /** Big-screen podium: places count..4 on an honours strip, then 3rd, 2nd, 1st on the podium. */
-export function Podium({ scored, count, reveal, pin, cfg }: { scored: Scored[]; count: number; reveal: number; pin: string; cfg: Pick<GameState, "rounds" | "teamPrize"> }) {
+export function Podium({ scored, count, reveal, pin, cfg }: { scored: Scored[]; count: number; reveal: number; pin: string; cfg: Pick<GameState, "rounds"> }) {
   const mode = modeOf(cfg);
   const winners = winnersOf(scored, count);
   const { shown, suspense } = useRevealShown(reveal, true);
@@ -110,8 +110,7 @@ export function Podium({ scored, count, reveal, pin, cfg }: { scored: Scored[]; 
         <span className="spotlight" aria-hidden="true" />
         <span className="place-seal">{w.tied ? `=${ordinal(w.rank)}` : ordinal(place)}</span>
         <span className="winner-name">{w.name}</span>
-        {isTeam(w) && <span className="winner-team">{members(w)}</span>}
-        {isTeam(w) && (w.members?.length ?? 0) > 1 && <span className="winner-prize">{prizeText(cfg, w)}</span>}
+        {w.team && <span className="winner-team">{teamLabel(w)}</span>}
         <span className="winner-id">{w.id}</span>
         <span className="winner-pts">{scoreText(w, cfg, mode)}</span>
         {mode === "both" && (
