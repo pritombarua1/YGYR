@@ -308,8 +308,33 @@ async function entriesClose() {
   await check(() => late.id, "entries open again");
 }
 
+async function secretScores() {
+  section("Secret scores until the reveal");
+  const pin = await newGame({ rounds: ["distance"], entries: "both", teamMax: 3 });
+  const host = await control(pin);
+  const P = await players(pin, ["Ann", "Ben"]);
+  await check(() => host.state.liveBoard === false, "secret by default");
+  host.send({ t: "phase", phase: "distance", from: "lobby" });
+  await check(() => host.state.up === P.Ann.id, "round starts");
+  host.send({ t: "distance", id: P.Ann.id, m: 8.4 });
+  await check(() => host.state.players.find((p) => p.id === P.Ann.id).distance === 8.4, "host sees Ann's 8.4 m");
+  await check(() => P.Ann.state.players.find((p) => p.id === P.Ann.id).distance === 8.4, "Ann sees her own 8.4 m");
+  await check(() => P.Ben.state.players.find((p) => p.id === P.Ann.id).distance === 0, "Ben only sees that Ann has thrown, not how far");
+  const viewer = await client(pin, { t: "hello", role: "viewer" });
+  await check(() => viewer.state && viewer.state.players.every((p) => !p.distance), "a results-page viewer sees no scores either");
+  host.send({ t: "settings", liveBoard: true });
+  await check(() => P.Ben.state.liveBoard && P.Ben.state.players.find((p) => p.id === P.Ann.id).distance === 8.4, "host switches to Live Top 5: phones see scores");
+  host.send({ t: "settings", liveBoard: false });
+  await check(() => P.Ben.state.players.find((p) => p.id === P.Ann.id).distance === 0, "and back to secret");
+  host.send({ t: "distance", id: P.Ben.id, m: 7.1 });
+  await check(() => host.state.up === null, "round complete");
+  host.send({ t: "phase", phase: "winners", from: "distance" });
+  await check(() => P.Ben.state.phase === "winners" && P.Ben.state.players.find((p) => p.id === P.Ann.id).distance === 8.4, "at the reveal everyone gets the real scores");
+}
+
 try {
   await modes();
+  await secretScores();
   await entriesClose();
   await teams("both");
   await teams("teams");

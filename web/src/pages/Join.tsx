@@ -5,7 +5,7 @@ import { entryFor, ordinal, place as placeOf, score } from "../scoring";
 import { callOrder, isAway } from "../queue";
 import { play, useSound } from "../sound";
 import { useRevealShown, winnersOf } from "../components/Podium";
-import { EVENT, SCORING } from "../config";
+import { EVENT, RECYCLE, SCORING } from "../config";
 import { deviceKey, fingerprint } from "../device";
 import { binText, binThrows, modeOf, roundKicker, teamMatches, teamOf } from "../mode";
 import type { GameState, Team } from "../types";
@@ -213,6 +213,8 @@ function PlayerPass({ state, me, online, code, send }: { state: GameState; me: s
   const person = state.players.find((o) => o.id === me);
   const p = entryFor(scored, me); // my own line (none: teams-only and not in a team)
   const crew = teamOf(state, me);
+  // secret scores: until the reveal this phone only knows its own results, so no rank or points yet
+  const secret = !state.liveBoard && state.phase !== "winners";
   const { intro, reveal, done } = usePhaseTransition(state.phase);
   const drops = useBinDrops(state.players, me);
   const landing = useLanding(state.players, me);
@@ -303,12 +305,12 @@ function PlayerPass({ state, me, online, code, send }: { state: GameState; me: s
           <div className="pass-stub">
             <span className="pass-k">{mode === "both" ? "Points" : mode === "distance" ? "Flight" : "In bin"}</span>
             <strong className="pass-pts">
-              {!p ? "–" : mode === "both" ? <CountUp value={p.total} /> : mode === "distance" ? (p.distance ? p.distance.toFixed(2) : "–") : binText(state, p.bins)}
+              {!p ? "–" : mode === "both" ? secret ? "?" : <CountUp value={p.total} /> : mode === "distance" ? (p.distance ? p.distance.toFixed(2) : "–") : binText(state, p.bins)}
             </strong>
             <span className="pass-k">Rank</span>
             {/* hidden during the podium drumroll so phones don't spoil the reveal */}
             <strong className="pass-rank">
-              {state.phase === "winners" && !revealed ? "?" : started && p && p.total > 0 ? placeOf(p) : "–"}
+              {(state.phase === "winners" && !revealed) || (secret && started) ? "?" : started && p && p.total > 0 ? placeOf(p) : "–"}
             </strong>
             <span className="pass-of">of {scored.length}</span>
           </div>
@@ -360,8 +362,11 @@ function PlayerPass({ state, me, online, code, send }: { state: GameState; me: s
 
         {(state.phase === "bin" || drops.length > 0) && <BinDrop drops={drops} small points={mode === "both" ? SCORING.binPoints : null} />}
 
+        {secret && started && <p className="hint secret-note">🤫 Scores are secret until the big reveal at the end.</p>}
+
         {allRevealed && (
           <>
+            <p className="recycle-note">♻️ {RECYCLE.short}</p>
             <SaveResult state={state} me={me} />
             <a className="btn red" href={`/results?pin=${state.pin}`}>
               See everyone's results
@@ -379,7 +384,7 @@ function PlayerPass({ state, me, online, code, send }: { state: GameState; me: s
               <div>
                 <dt>Distance</dt>
                 <dd>{person.distance ? `${person.distance.toFixed(2)} m` : "–"}</dd>
-                {mode === "both" && p && <dd className="tally-pts">{p.distPts} pts</dd>}
+                {mode === "both" && p && !secret && <dd className="tally-pts">{p.distPts} pts</dd>}
               </div>
             )}
             {state.rounds.includes("bin") && (
@@ -388,7 +393,7 @@ function PlayerPass({ state, me, online, code, send }: { state: GameState; me: s
                 <dd>
                   <Dots n={person.bins} max={binThrows(state)} />
                 </dd>
-                {mode === "both" && p && <dd className="tally-pts">{p.binPts} pts</dd>}
+                {mode === "both" && p && !secret && <dd className="tally-pts">{p.binPts} pts</dd>}
               </div>
             )}
           </dl>

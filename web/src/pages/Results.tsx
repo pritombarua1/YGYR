@@ -4,7 +4,7 @@ import { store, useGame } from "../api";
 import { entryFor, ordinal, place, score, scoreText } from "../scoring";
 import { binText, modeOf, teamLabel } from "../mode";
 import { matches } from "../queue";
-import { EVENT } from "../config";
+import { EVENT, RECYCLE } from "../config";
 import { Search } from "../components/Inputs";
 import { Seal } from "../components/RuleSlides";
 import { useRevealShown, winnersOf } from "../components/Podium";
@@ -79,6 +79,7 @@ export default function Results() {
             {mode === "both" && ` (${mine.distPts} distance + ${mine.binPts} bin)`}
           </span>
           {me && <SaveResult state={state} me={me} />}
+          <p className="recycle-note">♻️ {RECYCLE.short}</p>
         </motion.section>
       )}
 

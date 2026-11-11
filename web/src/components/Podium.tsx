@@ -6,6 +6,7 @@ import type { GameState } from "../types";
 import { binText, modeOf, teamLabel } from "../mode";
 import { play } from "../sound";
 import { Confetti } from "./Confetti";
+import { RECYCLE } from "../config";
 
 export const SUSPENSE_MS = 2600; // drumroll before each place appears
 
@@ -193,6 +194,11 @@ export function Podium({ scored, count, reveal, pin, cfg }: { scored: Scored[]; 
             <strong className="display">Everyone's results</strong>
             <span>Scan to find your score</span>
           </div>
+        </div>
+      )}
+      {allDone && (
+        <div className="recycle-banner" role="note">
+          <span aria-hidden="true">♻️</span> {RECYCLE.short}
         </div>
       )}
       {shown === 0 && !suspense && winners.length === 0 && <p className="hand podium-empty">No scores yet.</p>}

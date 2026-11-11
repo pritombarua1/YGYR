@@ -109,7 +109,19 @@ export function Stage({ state, scored }: { state: GameState; scored: Scored[] })
       </section>
       <aside className="stage-side">
         {isBin && <BinDrop drops={drops} points={mode === "both" ? SCORING.binPoints : null} />}
-        <Leaderboard rows={scored} cfg={state} show={isBin ? "all" : "distance"} limit={5} title="Top 5" />
+        {state.liveBoard ? (
+          <Leaderboard rows={scored} cfg={state} show={isBin ? "all" : "distance"} limit={5} title="Top 5" />
+        ) : (
+          // Kahoot-style suspense: nobody knows who's leading until the podium
+          <div className="board secret-board sheet taped">
+            <span className="secret-hush" aria-hidden="true">🤫</span>
+            <h2>Scores are secret</h2>
+            <p className="hand">Who's in the lead? Nobody knows… until the big reveal!</p>
+            <p className="secret-count">
+              <b>{status.done.length}</b> of {status.field.length} {isBin ? "have had their bin throws" : "planes have flown"}
+            </p>
+          </div>
+        )}
       </aside>
     </div>
   );

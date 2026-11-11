@@ -64,6 +64,7 @@ interface GameData {
   rounds?: Round[]; // which challenges run, in order (at least one). Older games: both
   entries?: Entries;
   teamMax?: number; // most people in one team
+  liveBoard?: boolean; // true = standings visible during the rounds; default: secret until the winners reveal
   reveal: number; // how many of those places have been revealed so far
   ruleStep?: number; // which rule slide is showing
   up?: string | null; // player currently called to throw
@@ -310,7 +311,7 @@ export class Game extends DurableObject<Env> {
         this.send(ws, { t: "you", id: p?.id ?? null, code: p?.code });
       }
       // anyone else (the results page) just watches
-      return this.send(ws, { t: "state", state: this.publicState(this.isHost(ws)) });
+      return this.send(ws, { t: "state", state: this.publicState(this.isHost(ws), undefined, (ws.deserializeAttachment() as Tag).playerId) });
     }
 
     if (msg.t === "join") {
@@ -462,6 +463,7 @@ export class Game extends DurableObject<Env> {
           g.winners = clampInt(msg.winners, MIN_WINNERS, MAX_WINNERS);
           g.reveal = Math.min(g.reveal, g.winners);
         }
+        if (typeof msg.liveBoard === "boolean") g.liveBoard = msg.liveBoard;
         if (msg.setup) {
           const want = cleanSetup(msg.setup, { rounds: g.rounds!, entries: g.entries!, teamMax: g.teamMax! });
           // Team size can always grow, but never shrink once a team exists (nobody gets pushed out).
@@ -756,9 +758,22 @@ export class Game extends DurableObject<Env> {
   }
 
   /** Tokens never leave the server. Rejoin codes go to host screens only (for helping someone back in). */
-  private publicState(forHost = false, closing?: WebSocket) {
+  /** Secret scores: until the winners stage, phones never receive anyone else's results. */
+  private secret() {
     const g = this.game!;
+    return !g.liveBoard && g.phase !== "winners";
+  }
+
+  /**
+   * What a screen may see. Tokens and device data never leave the server; rejoin codes and the
+   * "same phone?" flag go to host screens only. With secret scores, a phone gets its own results and
+   * only "has thrown / hasn't" for everyone else (so the calling queue still works), until the reveal.
+   */
+  private publicState(forHost = false, closing?: WebSocket, me?: string) {
+    const g = this.game!;
+    const hide = !forHost && this.secret();
     return {
+      liveBoard: !!g.liveBoard,
       pin: g.pin,
       phase: g.phase,
       winners: g.winners ?? MIN_WINNERS,
@@ -772,7 +787,13 @@ export class Game extends DurableObject<Env> {
       canRestore: forHost ? g.trash?.name ?? null : null,
       controllers: this.controllers(closing),
       // Device data never leaves the server. Hosts see only a "looks like the same phone as" flag.
-      players: g.players.map(({ token, code, device, fp, net, teamsMade, ...rest }) => (forHost ? { ...rest, code, twin: this.twins(g, rest.id) } : rest)),
+      players: g.players.map(({ token, code, device, fp, net, teamsMade, ...rest }) =>
+        forHost
+          ? { ...rest, code, twin: this.twins(g, rest.id) }
+          : hide && rest.id !== me
+            ? { ...rest, distance: rest.distance === null ? null : 0, bins: rest.bins === null ? null : 0, tiebreak: null }
+            : rest,
+      ),
       teams: g.teams ?? [],
       // host screens only: who can control the event, and the invite code for adding another phone
       ctrl: forHost ? (g.controllers ?? []).map(({ id, name, admin }) => ({ id, name, admin, online: this.online(id, closing) })) : [],
@@ -788,10 +809,14 @@ export class Game extends DurableObject<Env> {
   private broadcast(closing?: WebSocket) {
     const msg = JSON.stringify({ t: "state", state: this.publicState(false, closing) });
     const hostMsg = JSON.stringify({ t: "state", state: this.publicState(true, closing) });
+    const secret = this.secret();
     for (const ws of this.ctx.getWebSockets()) {
       if (ws === closing) continue;
       try {
-        ws.send(this.isHost(ws) ? hostMsg : msg);
+        const tag = ws.deserializeAttachment() as Tag;
+        // secret scores: each player's copy carries only their own results
+        if (!this.isHost(ws) && secret && tag.playerId) ws.send(JSON.stringify({ t: "state", state: this.publicState(false, closing, tag.playerId) }));
+        else ws.send(this.isHost(ws) ? hostMsg : msg);
       } catch {
         // socket went away mid-broadcast; it will reconnect
       }

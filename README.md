@@ -61,6 +61,18 @@ Teams are called **in team formation**: when a team comes up, its members throw 
 
 **Places go to people, not teams.** Everyone is ranked on their **own** throw; a team is who you fly with (called together, shown together), not a merged score. Example: a team captain throws 9.00 m, a solo pilot 8.90 m, the captain's team-mates 7 m. The captain is 1st, the solo pilot 2nd, the team-mates place on their own 7 m throws. If anyone (solo or in any team) throws 9.10 m, they're 1st.
 
+## Secret scores (the surprise reveal)
+
+By default nobody sees the standings until the podium, like a quiz-show reveal:
+- **Big screen** during the rounds: who's throwing and each landing (everyone sees the tape anyway), but the Top 5 is replaced by "🤫 Scores are secret".
+- **Phones** show only their own throw; rank (and points, with two rounds) read "?" until the reveal. The server doesn't even send other people's results to phones until the winners stage, so peeking isn't possible.
+- **Control phone** still sees the full standings (Menu → Standings).
+- Prefer the old way? Control **Menu → Scoreboard during the rounds → Live Top 5**.
+
+## Recycling
+
+The last rules slide is **Recycle your plane**: take it with you and drop it in a yellow Recycling bin (clean paper only). After the reveal the same reminder is on every phone, the results page and the big screen, and the control phone reminds the host to say it out loud. The wording is `RECYCLE` in `web/src/config.ts`.
+
 ## Prizes
 
 One prize per place, always: with 3 winners that's 3 prizes, given to the **person** who threw it (their team is shown next to their name, so the team can come up for the photo). Everyone else sees their own place ("12th of 30") with a thank-you, and snacks are for everyone. The control phone's winners list shows how many prizes to hand out.

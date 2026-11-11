@@ -10,6 +10,7 @@ import { useDialog } from "../components/Dialog";
 import { useWakeLock } from "../wakelock";
 import { Dots, Search } from "../components/Inputs";
 import { rulesFor, withWinners } from "../components/RuleSlides";
+import { RECYCLE } from "../config";
 import { Leaderboard } from "../components/Leaderboard";
 import { EditPlayer, type Fix } from "../components/EditPlayer";
 import { ReadmeSheet } from "../components/Readme";
@@ -774,6 +775,7 @@ function WinnersPanel({ state, send, onEdit }: { state: GameState; send: Send; o
           <>
             <h2 className="display">All {state.winners} revealed!</h2>
             <p>The big screen shows a QR for everyone's results. Phones get a "See full results" button too.</p>
+            <p className="notice">♻️ Say it out loud: {RECYCLE.short}</p>
           </>
         )}
         {state.reveal > 0 && (
@@ -871,6 +873,17 @@ function Menu({
             Close
           </button>
         </header>
+
+        <h3>Scoreboard during the rounds</h3>
+        <div className="seg two" role="radiogroup" aria-label="Scoreboard during the rounds">
+          <button type="button" role="radio" aria-checked={!state.liveBoard} className={!state.liveBoard ? "on" : ""} onClick={() => send({ t: "settings", liveBoard: false })}>
+            Secret (surprise reveal)
+          </button>
+          <button type="button" role="radio" aria-checked={state.liveBoard} className={state.liveBoard ? "on" : ""} onClick={() => send({ t: "settings", liveBoard: true })}>
+            Live Top 5
+          </button>
+        </div>
+        <p className="hint">Secret: the big screen and phones show no standings until the podium (you still see them here).</p>
 
         <h3>Winners this event</h3>
         <div className="winners-pick">

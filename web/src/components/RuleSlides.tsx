@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useReducedMotion } from "motion/react";
 import { pageTear } from "./tear";
 import { play } from "../sound";
-import { PERKS, SCORING } from "../config";
+import { PERKS, RECYCLE, SCORING } from "../config";
 import { binThrows, modeOf, type Mode } from "../mode";
 import type { GameState } from "../types";
 import { PlaneShape } from "./Plane";
@@ -14,9 +14,9 @@ export const withWinners = (text: string, winners: number) => text.split("{W}").
 // One rule per screen. The host steps through them with Next / Back; phones show the same step.
 // The slides depend on the game: which challenges run, and whether teams can enter.
 
-export type Art = "fold" | "shape" | "team" | "distance" | "bin" | "total";
+export type Art = "fold" | "shape" | "team" | "distance" | "bin" | "total" | "recycle";
 export type Rule = { short: string; title: string; text: string; phone: string; art: Art };
-type RuleCfg = Pick<GameState, "rounds" | "entries" | "teamMax">;
+type RuleCfg = Pick<GameState, "rounds" | "entries" | "teamMax"> & Partial<Pick<GameState, "liveBoard">>;
 
 export function rulesFor(cfg: RuleCfg): Rule[] {
   const mode = modeOf(cfg);
@@ -80,10 +80,11 @@ export function rulesFor(cfg: RuleCfg): Rule[] {
     text:
       (mode === "both"
         ? "Distance points + bin points = your total. On a tie, the longer flight wins. "
-        : "Exactly the same result? One more throw each to settle it. ") + PERKS,
-    phone: (mode === "both" ? "Distance + bin = your total. Tie? Longer flight wins. " : "Tie? One more throw each. ") + PERKS,
+        : "Exactly the same result? One more throw each to settle it. ") + PERKS + (cfg.liveBoard ? "" : " Scores stay secret until the big reveal!"),
+    phone: (mode === "both" ? "Distance + bin = your total. Tie? Longer flight wins. " : "Tie? One more throw each. ") + PERKS + (cfg.liveBoard ? "" : " Scores stay secret till the end!"),
     art: "total",
   });
+  rules.push({ short: "Recycle", title: RECYCLE.title, text: RECYCLE.text, phone: RECYCLE.short, art: "recycle" });
   return rules;
 }
 
@@ -196,6 +197,7 @@ export function RuleSlide({ rules, step, winners = 3, mode }: { rules: Rule[]; s
           {rule.art === "distance" && <DistanceArt />}
           {rule.art === "bin" && <BinArt throws={binThrowsFor(mode)} points={mode === "both"} />}
           {rule.art === "total" && <TotalArt mode={mode} />}
+          {rule.art === "recycle" && <RecycleArt />}
         </Still.Provider>
       </div>
     </div>
@@ -824,6 +826,33 @@ function BinArt({ throws = 3, points = true }: { throws?: number; points?: boole
         </g>
       ))}
       <text x="70" y="320" textAnchor="middle" className="art-label">{throws} throws</text>
+    </svg>
+  );
+}
+
+/* --- Recycling: the plane glides into a yellow Recycling bin --- */
+
+function RecycleArt() {
+  const T = 4.5;
+  const still = useContext(Still);
+  return (
+    <svg viewBox="0 0 420 330" className="art" role="img" aria-label="A paper plane glides into a yellow Recycling bin">
+      <Defs />
+      <path d="M0 300 H420" stroke={INK} strokeWidth="3" strokeLinecap="round" />
+      <FlyingPlane T={T} path="M20 60 C 120 30, 200 70, 210 150" from={0.05} to={0.45} hideAt={0.46} scale={0.5} />
+      {/* the bin: yellow lid */}
+      <path d="M140 162 h140 l-14 138 h-112 Z" fill={PAPER} stroke={INK} strokeWidth="3.5" strokeLinejoin="round" />
+      <path d="M130 148 h160 v16 H130 Z" fill="#ffd23f" stroke={INK} strokeWidth="3.5" strokeLinejoin="round" />
+      {/* a yellow label band, like the real bins */}
+      <path d="M146 204 h128 l-3 34 h-122 Z" fill="#ffd23f" stroke={INK} strokeWidth="2.5" strokeLinejoin="round" />
+      <text x="210" y="228" textAnchor="middle" className="art-label" style={{ fontSize: 17, fill: INK }}>
+        RECYCLING
+      </text>
+      <g opacity={still ? 1 : 0}>
+        <Toggle T={T} steps={[[0, 0], [0.47, 1], [0.95, 0]]} />
+        <text x="300" y="132" className="art-plus">♻</text>
+      </g>
+      <text x="210" y="322" textAnchor="middle" className="art-label">clean paper only: no food or wrappers</text>
     </svg>
   );
 }

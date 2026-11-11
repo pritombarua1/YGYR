@@ -47,6 +47,10 @@ Do this once on the real Wi-Fi (or hotspot), with the projector and 3 phones: on
 - [ ] **Remove** it: that phone goes back to the login screen straight away and its old QR doesn't work.
 - [ ] Winners list on the control phone: one person per place, with their team name, and "Prizes to hand out: 3".
 
+## Secret scores and recycling
+- [ ] During a round the big screen says **Scores are secret** and phones show "?" for rank; the control phone's Menu → Standings still shows everything.
+- [ ] After the reveal: recycling banner on the big screen, recycling note on the phones.
+
 ## Updates
 - [ ] Laptop corner **Menu → Check for updates** says "Up to date" (or lists new updates).
 

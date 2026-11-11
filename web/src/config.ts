@@ -21,5 +21,12 @@ export const DEFAULT_SETUP = {
   winners: 3,
 };
 
+// Shown on the recycling rule, the phones after the reveal and the big screen at the end.
+export const RECYCLE = {
+  title: "Recycle your plane",
+  text: "When you're done, take your plane with you and drop it in a yellow Recycling bin. Clean paper only: no food, wrappers or coated cups.",
+  short: "Take your plane with you and drop it in a yellow Recycling bin on your way out.",
+};
+
 // Shown on the last rule slide.
 export const PERKS = "Prizes for the top {W}. Snacks and materials for everyone who takes part!";
