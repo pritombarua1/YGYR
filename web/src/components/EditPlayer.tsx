@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import type { GameState, Player } from "../types";
-import { binThrows, isTeam } from "../mode";
+import { binThrows, teamOf } from "../mode";
 
-export type Fix = { name: string; team: string[] | null; distance: number | null; bins: number | null; tiebreak: number | null };
+/** team: the team id they throw for (null = solo); newTeam: start a new team with this name instead. */
+export type Fix = { name: string; team: string | null; newTeam?: string; distance: number | null; bins: number | null; tiebreak: number | null };
 
 /**
  * Fix one player's name, flight distance and bin hits in one place.
@@ -17,13 +18,15 @@ export function EditPlayer({
   onRemove,
 }: {
   p: Player;
-  cfg: Pick<GameState, "rounds">;
+  cfg: Pick<GameState, "rounds" | "teams" | "entries" | "teamMax">;
   onSave: (fix: Fix) => void;
   onClose: () => void;
   onRemove?: () => void;
 }) {
   const [name, setName] = useState(p.name);
-  const [team, setTeam] = useState((p.team ?? []).join(", "));
+  const current = teamOf(cfg, p.id);
+  const [team, setTeam] = useState<string>(current?.id ?? "");
+  const [newTeam, setNewTeam] = useState("");
   const max = binThrows(cfg);
   const [metres, setMetres] = useState(p.distance?.toString() ?? "");
   const [bins, setBins] = useState<number | null>(p.bins);
@@ -34,15 +37,18 @@ export function EditPlayer({
     e.preventDefault();
     const clean = name.trim();
     if (!clean || clean.length > 20) return setError("The name needs 1 to 20 characters.");
-    const people = team.split(",").map((t) => t.trim()).filter(Boolean);
-    if (isTeam(p) && people.length === 1) return setError("A team needs at least 2 names (or clear them all to make it a solo entry).");
+    if (team === "+new" && !newTeam.trim()) return setError("Type a name for the new team.");
     const text = metres.trim().replace(",", ".");
     const m = text === "" ? null : Number(text);
     if (m !== null && !(m > 0 && m <= 60)) return setError("Distance should be between 0 and 60 m, or empty if they haven't thrown.");
     const t = throwOff.trim().replace(",", ".");
     const tb = t === "" ? null : Number(t);
     if (tb !== null && !(tb > 0 && tb <= 60)) return setError("Throw-off should be between 0 and 60 m, or empty.");
-    onSave({ name: clean, team: people.length ? people : null, distance: m === null ? null : Math.round(m * 100) / 100, bins, tiebreak: tb });
+    onSave({
+      name: clean,
+      team: team === "+new" ? null : team || null,
+      newTeam: team === "+new" ? newTeam.trim() : undefined,
+      distance: m === null ? null : Math.round(m * 100) / 100, bins, tiebreak: tb });
   };
 
   return (
@@ -61,13 +67,22 @@ export function EditPlayer({
       >
         <h2 className="display">Fix {p.id}</h2>
 
-        <label htmlFor="edit-name">{isTeam(p) ? "Team name" : "Name"}</label>
+        <label htmlFor="edit-name">Name</label>
         <input id="edit-name" maxLength={20} value={name} onChange={(e) => setName(e.target.value)} />
 
-        {isTeam(p) && (
+        {cfg.entries !== "solo" && (
           <>
-            <label htmlFor="edit-team">Team members (separate with commas)</label>
-            <input id="edit-team" value={team} onChange={(e) => setTeam(e.target.value)} />
+            <label htmlFor="edit-team">Team (you can move people without the captain's OK)</label>
+            <select id="edit-team" value={team} onChange={(e) => setTeam(e.target.value)}>
+              <option value="">No team (flies solo{cfg.entries === "teams" ? ": won't throw in a teams-only event" : ""})</option>
+              {(cfg.teams ?? []).map((t) => (
+                <option key={t.id} value={t.id} disabled={t.id !== current?.id && t.members.length >= cfg.teamMax}>
+                  {t.name} ({t.members.length}/{cfg.teamMax})
+                </option>
+              ))}
+              <option value="+new">New team…</option>
+            </select>
+            {team === "+new" && <input aria-label="New team name" maxLength={20} placeholder="Team name" value={newTeam} onChange={(e) => setNewTeam(e.target.value)} />}
           </>
         )}
 
@@ -124,7 +139,7 @@ export function EditPlayer({
         <div className="dialog-actions">
           {onRemove && (
             <button type="button" className="link danger edit-remove" onClick={onRemove}>
-              Remove {isTeam(p) ? "team" : "pilot"}
+              Remove pilot
             </button>
           )}
           <button type="button" className="btn" onClick={onClose}>

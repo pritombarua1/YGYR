@@ -1,5 +1,8 @@
 {
-  "name": "paper-plane-challenge",
+  "name": "ygyr",
+  "description": "YGYR: Your Game, Your Rules. Live phone-and-big-screen contests, starting with the Paper Plane Challenge.",
+  "license": "MIT",
+  "author": "Pritom Barua",
   "private": true,
   "workspaces": ["web", "worker"],
   "scripts": {

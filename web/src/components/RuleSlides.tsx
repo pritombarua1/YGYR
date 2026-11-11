@@ -29,10 +29,8 @@ export function rulesFor(cfg: RuleCfg): Rule[] {
     {
       short: "Fold",
       title: "Fold your plane",
-      text: teams
-        ? "Grab one sheet from the table and fold it into a plane, any design you like. Team? Fold one plane together. Here's the Glider, step by step."
-        : "Grab one sheet from the table and fold it into a plane, any design you like. Here's the Glider, step by step.",
-      phone: teams ? "One sheet, one plane. Teams fold one plane together." : "Grab one sheet from the table and fold your plane. Any design you like.",
+      text: "Grab one sheet from the table and fold it into a plane, any design you like. Here's the Glider, step by step.",
+      phone: "Grab one sheet from the table and fold your plane. Any design you like.",
       art: "fold",
     },
     {
@@ -50,10 +48,9 @@ export function rulesFor(cfg: RuleCfg): Rule[] {
       short: cfg.entries === "teams" ? "Teams" : "Solo or team",
       title: cfg.entries === "teams" ? "Teams of 2 to " + cfg.teamMax : "Fly solo or as a team",
       text:
-        (cfg.entries === "teams" ? `Teams of 2 to ${cfg.teamMax}.` : `On your own, or a team of up to ${cfg.teamMax}.`) +
-        " A team is one entry: one plane, one turn, scored exactly like a solo pilot. So it's fair: pick your best thrower" +
-        (cfg.rounds.includes("bin") ? ", and share the bin throws if you like." : "."),
-      phone: `A team is one entry: one plane, one turn, same scoring as a solo pilot. Pick your best thrower.`,
+        (cfg.entries === "teams" ? `Teams of up to ${cfg.teamMax}.` : `On your own, or in a team of up to ${cfg.teamMax}.`) +
+        " On your phone: start a team, or ask to join one and the captain lets you in. Everyone throws, team-mates one after another, and a team scores the average of its members. So a big team has no advantage over a solo pilot.",
+      phone: "Start a team on your phone or ask to join one. Team-mates throw one after another; a team scores its average.",
       art: "team",
     });
   if (cfg.rounds.includes("distance"))
@@ -844,13 +841,13 @@ function TeamArt() {
     </g>
   );
   return (
-    <svg viewBox="0 0 420 330" className="art" role="img" aria-label="A team of three with one plane equals a solo pilot with one plane: one turn each">
+    <svg viewBox="0 0 420 330" className="art" role="img" aria-label="A team of three, each with a plane, scores their average: the same scale as a solo pilot">
       <Defs />
       <path d="M0 262 H420" stroke={INK} strokeWidth="3" strokeLinecap="round" />
       {/* the team: three figures, only the front one holds the plane */}
       <g transform="translate(0 30) scale(0.86)">
-        <StickMan x={44} y={270} T={T} />
-        <StickMan x={92} y={270} T={T} />
+        <StickMan x={44} y={270} T={T} hand={<HandPlane />} />
+        <StickMan x={92} y={270} T={T} hand={<HandPlane />} />
         <StickMan x={140} y={270} T={T} throws={[0.05, 0.19, 0.27, 0.4]} hand={plane} />
       </g>
       <g opacity={still ? 1 : 0}>
@@ -860,9 +857,9 @@ function TeamArt() {
       <g transform="translate(0 30) scale(0.86)">
         <StickMan x={330} y={270} T={T} throws={[0.05, 0.19, 0.27, 0.4]} hand={plane} />
       </g>
-      <text x="96" y="292" textAnchor="middle" className="art-label">team: 1 plane</text>
-      <text x="300" y="292" textAnchor="middle" className="art-label">solo: 1 plane</text>
-      <text x="210" y="322" textAnchor="middle" className="art-label">one turn each, same scoring</text>
+      <text x="96" y="292" textAnchor="middle" className="art-label">team: the average</text>
+      <text x="300" y="292" textAnchor="middle" className="art-label">solo: your throw</text>
+      <text x="210" y="322" textAnchor="middle" className="art-label">same scale, so it's fair</text>
     </svg>
   );
 }

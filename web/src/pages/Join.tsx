@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { store, useGame } from "../api";
-import { ordinal, place as placeOf, score } from "../scoring";
+import { entryFor, ordinal, place as placeOf, score } from "../scoring";
 import { callOrder, isAway } from "../queue";
 import { play, useSound } from "../sound";
 import { useRevealShown, winnersOf } from "../components/Podium";
 import { EVENT, SCORING } from "../config";
-import { binText, binThrows, isTeam, members, modeOf, roundKicker } from "../mode";
-import type { GameState } from "../types";
+import { binText, binThrows, modeOf, roundKicker, teamOf } from "../mode";
+import type { GameState, Team } from "../types";
 import { rulesFor, withWinners } from "../components/RuleSlides";
 import { LandingStamp, useLanding } from "../components/CallCard";
 import { Dots } from "../components/Inputs";
@@ -35,8 +35,6 @@ function JoinGame({ pin }: { pin: string }) {
   const [code, setCode] = useState(""); // rejoin code typed in, for coming back on another phone
   const [askCode, setAskCode] = useState(false);
   const [myCode, setMyCode] = useState<string | undefined>();
-  const [asTeam, setAsTeam] = useState(false);
-  const [crew, setCrew] = useState<string[]>(["", ""]); // team member names
 
   const { state, online, send } = useGame(
     pin,
@@ -50,6 +48,7 @@ function JoinGame({ pin }: { pin: string }) {
         setPending(false);
       } else if (m.t === "error") {
         setError(m.message);
+        window.setTimeout(() => setError((e) => (e === m.message ? "" : e)), 5000);
         if (m.taken) setAskCode(true);
         setPending(false);
       } else if (m.t === "removed") {
@@ -63,22 +62,15 @@ function JoinGame({ pin }: { pin: string }) {
   );
 
   const entries = state?.entries ?? "solo";
-  const teamMax = state?.teamMax ?? 4;
-  const team = entries === "teams" || (entries === "both" && asTeam);
 
   const join = (e: React.FormEvent) => {
     e.preventDefault();
     const clean = name.trim();
-    if (!clean) return setError(team ? "Give your team a name first." : "Pop your name in first.");
+    if (!clean) return setError("Pop your name in first.");
     if (clean.length > 20) return setError("Keep it to 20 characters.");
-    const people = crew.map((c) => c.trim()).filter(Boolean);
-    if (team && !askCode) {
-      if (people.length < 2) return setError("Add at least 2 names to your team (including you).");
-      if (people.some((c) => c.length > 20)) return setError("Keep each name to 20 characters.");
-    }
     setError("");
     setPending(true);
-    send({ t: "join", name: clean, team: team && !askCode ? people : undefined, code: askCode ? code.trim().toUpperCase() : undefined });
+    send({ t: "join", name: clean, code: askCode ? code.trim().toUpperCase() : undefined });
   };
 
   if (noGame) {
@@ -93,7 +85,18 @@ function JoinGame({ pin }: { pin: string }) {
     );
   }
 
-  if (state && me) return <PlayerPass state={state} me={me} online={online} code={myCode} />;
+  if (state && me)
+    return (
+      <>
+        <PlayerPass state={state} me={me} online={online} code={myCode} send={send} />
+        {/* e.g. "That team name is taken", after a team action on the pass */}
+        {error && (
+          <div className="toast" role="alert" onClick={() => setError("")}>
+            {error}
+          </div>
+        )}
+      </>
+    );
 
   return (
     <Shell>
@@ -108,51 +111,10 @@ function JoinGame({ pin }: { pin: string }) {
       ) : (
         <form className="sheet taped form" onSubmit={join}>
           {notice && <p className="notice">{notice}</p>}
-          {entries === "both" && !askCode && (
-            <div className="seg join-kind" role="radiogroup" aria-label="Joining as">
-              <button type="button" role="radio" aria-checked={!asTeam} className={!asTeam ? "on" : ""} onClick={() => (setAsTeam(false), setError(""))}>
-                Just me
-              </button>
-              <button type="button" role="radio" aria-checked={asTeam} className={asTeam ? "on" : ""} onClick={() => (setAsTeam(true), setError(""))}>
-                We're a team
-              </button>
-            </div>
-          )}
-          <label htmlFor="name">{team ? "Team name" : "Your name"}</label>
-          <input
-            id="name"
-            autoComplete={team ? "off" : "given-name"}
-            maxLength={20}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={team ? "e.g. The Paper Hawks" : "e.g. Priya S"}
-          />
-          {team && !askCode && (
-            <fieldset className="crew">
-              <legend>Who's in the team? (2 to {teamMax})</legend>
-              {crew.map((c, i) => (
-                <div className="crew-row" key={i}>
-                  <input
-                    maxLength={20}
-                    value={c}
-                    aria-label={i === 0 ? "Your name" : `Team member ${i + 1}`}
-                    placeholder={i === 0 ? "Your name" : `Person ${i + 1}`}
-                    onChange={(e) => setCrew((list) => list.map((x, j) => (j === i ? e.target.value : x)))}
-                  />
-                  {i >= 2 && (
-                    <button type="button" className="btn" aria-label={`Remove person ${i + 1}`} onClick={() => setCrew((list) => list.filter((_, j) => j !== i))}>
-                      ×
-                    </button>
-                  )}
-                </div>
-              ))}
-              {crew.length < teamMax && (
-                <button type="button" className="link" onClick={() => setCrew((list) => [...list, ""])}>
-                  + Add a person
-                </button>
-              )}
-              <p className="hint">One phone joins for the whole team. You fold one plane together and get one turn, same as a solo pilot.</p>
-            </fieldset>
+          <label htmlFor="name">Your name</label>
+          <input id="name" autoComplete="given-name" maxLength={20} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Priya S" />
+          {entries !== "solo" && !askCode && (
+            <p className="hint">{entries === "teams" ? "Teams only today: after joining, start a team or ask to join one." : "Flying with friends? After joining you can start a team or ask to join one."}</p>
           )}
           {askCode && (
             <>
@@ -168,7 +130,7 @@ function JoinGame({ pin }: { pin: string }) {
                 placeholder="e.g. K7QX"
               />
               <p className="hint">
-                It's on your boarding pass on the other phone{team ? " (use your team name above)" : ""}. Lost it? The host can look it up.
+                It's on your boarding pass on the other phone. Lost it? The host can look it up.
               </p>
             </>
           )}
@@ -232,10 +194,12 @@ function statusFor(state: GameState, distance: number | null, bins: number | nul
   }
 }
 
-function PlayerPass({ state, me, online, code }: { state: GameState; me: string; online: boolean; code?: string }) {
-  const scored = useMemo(() => score(state.players, state), [state.players, state.rounds]);
+function PlayerPass({ state, me, online, code, send }: { state: GameState; me: string; online: boolean; code?: string; send: (m: object) => void }) {
+  const scored = useMemo(() => score(state), [state.players, state.teams, state.rounds, state.entries]);
   const mode = modeOf(state);
-  const p = scored.find((s) => s.id === me);
+  const person = state.players.find((o) => o.id === me);
+  const p = entryFor(scored, me); // what I score for: my team, or just me (none: teams-only and not in a team)
+  const crew = teamOf(state, me);
   const { intro, reveal, done } = usePhaseTransition(state.phase);
   const drops = useBinDrops(state.players, me);
   const landing = useLanding(state.players, me);
@@ -244,7 +208,7 @@ function PlayerPass({ state, me, online, code }: { state: GameState; me: string;
   // podium timing matches the big screen's drumroll, so this phone never gives the result away
   const { shown } = useRevealShown(state.phase === "winners" ? state.reveal : 0);
   const winners = winnersOf(scored, state.winners);
-  const myPlace = winners.findIndex((w) => w.id === me) + 1; // 0 = not a winner
+  const myPlace = p ? winners.findIndex((w) => w.id === p.id) + 1 : 0; // 0 = not a winner
   const meRevealed = state.phase === "winners" && myPlace > 0 && myPlace > state.winners - shown;
   const allRevealed = state.phase === "winners" && shown >= state.winners;
 
@@ -268,14 +232,22 @@ function PlayerPass({ state, me, online, code }: { state: GameState; me: string;
   const savedKey = `pp:codesaved:${state.pin}:${me}`;
   const [codeSaved, setCodeSaved] = useState(() => !!store.get(savedKey));
 
+  // A captain hears about new requests to join.
+  const asks = crew?.captain === me ? crew.requests.length : 0;
+  const prevAsks = useRef(asks);
+  useEffect(() => {
+    if (asks > prevAsks.current) (play("pop"), navigator.vibrate?.(120));
+    prevAsks.current = asks;
+  }, [asks]);
+
   // Buzz the phone when it's your turn.
   useEffect(() => {
     if (place === 0) navigator.vibrate?.([200, 100, 200]);
   }, [place === 0, state.phase]);
 
-  if (!p) return null;
+  if (!person) return null;
 
-  const [title, line] = statusFor(state, p.distance, p.bins, place, isAway(state, p));
+  const [title, line] = statusFor(state, person.distance, person.bins, place, isAway(state, person));
   const started = state.phase === "distance" || state.phase === "bin" || state.phase === "winners";
   const revealed = allRevealed || meRevealed;
   const podium = meRevealed;
@@ -288,13 +260,13 @@ function PlayerPass({ state, me, online, code }: { state: GameState; me: string;
         <section className="pass" aria-label="Your boarding pass">
           <div className="pass-main">
             <span className="pass-label">Boarding pass · Paper Plane Challenge</span>
-            <span className="pass-k">{isTeam(p) ? "Team" : "Passenger"}</span>
-            <strong className="pass-name">{p.name}</strong>
-            {isTeam(p) && <span className="pass-team">{members(p)}</span>}
+            <span className="pass-k">Passenger</span>
+            <strong className="pass-name">{person.name}</strong>
+            {crew && <span className="pass-team">Team {crew.name}</span>}
             <div className="pass-grid">
               <div>
                 <span className="pass-k">Flight</span>
-                <strong className="pass-id">{p.id}</strong>
+                <strong className="pass-id">{person.id}</strong>
               </div>
               <div>
                 <span className="pass-k">Gate</span>
@@ -310,14 +282,17 @@ function PlayerPass({ state, me, online, code }: { state: GameState; me: string;
             {code && <span className="pass-hint">Switching phone or browser? Join with your name and this code.</span>}
           </div>
           <div className="pass-stub">
-            <span className="pass-k">{mode === "both" ? "Points" : mode === "distance" ? "Flight" : "In bin"}</span>
+            <span className="pass-k">
+              {crew ? "Team " : ""}
+              {mode === "both" ? "points" : mode === "distance" ? (crew ? "avg" : "flight") : "in bin"}
+            </span>
             <strong className="pass-pts">
-              {mode === "both" ? <CountUp value={p.total} /> : mode === "distance" ? (p.distance ? p.distance.toFixed(2) : "–") : binText(state, p.bins)}
+              {!p ? "–" : mode === "both" ? <CountUp value={p.total} /> : mode === "distance" ? (p.distance ? p.distance.toFixed(2) : "–") : binText(state, p.bins)}
             </strong>
             <span className="pass-k">Rank</span>
             {/* hidden during the podium drumroll so phones don't spoil the reveal */}
             <strong className="pass-rank">
-              {state.phase === "winners" && !revealed ? "?" : started && p.total > 0 ? placeOf(p) : "–"}
+              {state.phase === "winners" && !revealed ? "?" : started && p && p.total > 0 ? placeOf(p) : "–"}
             </strong>
             <span className="pass-of">of {scored.length}</span>
           </div>
@@ -339,12 +314,12 @@ function PlayerPass({ state, me, online, code }: { state: GameState; me: string;
                 </>
               ) : podium ? (
                 <>
-                  <h2 className="display">{myPlace === 1 ? "You won!" : "You're a winner!"}</h2>
-                  <p className="big-place hand">{p.tied ? placeOf(p) : ordinal(myPlace)} place</p>
+                  <h2 className="display">{myPlace === 1 ? (crew ? "Your team won!" : "You won!") : crew ? "Your team's a winner!" : "You're a winner!"}</h2>
+                  <p className="big-place hand">{p?.tied ? placeOf(p) : ordinal(myPlace)} place</p>
                 </>
               ) : (
                 <>
-                  <h2 className="display">You finished {placeOf(p)}</h2>
+                  <h2 className="display">{p ? `${crew ? "Your team" : "You"} finished ${placeOf(p)}` : "Thanks for flying!"}</h2>
                   <p>Not in the top {state.winners} this time. Good flying, and thanks for playing.</p>
                 </>
               )
@@ -356,6 +331,8 @@ function PlayerPass({ state, me, online, code }: { state: GameState; me: string;
             )}
             <LandingStamp landing={landing} />
         </motion.section>
+
+        {(state.phase === "lobby" || state.phase === "rules" || crew) && state.entries !== "solo" && <TeamCard state={state} me={me} send={send} />}
 
         {(state.phase === "bin" || drops.length > 0) && <BinDrop drops={drops} small points={mode === "both" ? SCORING.binPoints : null} />}
 
@@ -374,17 +351,17 @@ function PlayerPass({ state, me, online, code }: { state: GameState; me: string;
             {state.rounds.includes("distance") && (
               <div>
                 <dt>Distance</dt>
-                <dd>{p.distance ? `${p.distance.toFixed(2)} m` : "–"}</dd>
-                {mode === "both" && <dd className="tally-pts">{p.distPts} pts</dd>}
+                <dd>{person.distance ? `${person.distance.toFixed(2)} m` : "–"}</dd>
+                {mode === "both" && p && <dd className="tally-pts">{p.distPts} pts{crew ? " (team)" : ""}</dd>}
               </div>
             )}
             {state.rounds.includes("bin") && (
               <div>
                 <dt>Bin</dt>
                 <dd>
-                  <Dots n={p.bins} max={binThrows(state)} />
+                  <Dots n={person.bins} max={binThrows(state)} />
                 </dd>
-                {mode === "both" && <dd className="tally-pts">{p.binPts} pts</dd>}
+                {mode === "both" && p && <dd className="tally-pts">{p.binPts} pts{crew ? " (team)" : ""}</dd>}
               </div>
             )}
           </dl>
@@ -395,8 +372,8 @@ function PlayerPass({ state, me, online, code }: { state: GameState; me: string;
       {code && !codeSaved && (
         <SaveCode
           code={code}
-          name={p.name}
-          id={p.id}
+          name={person.name}
+          id={person.id}
           pin={state.pin}
           onDone={() => {
             store.set(savedKey, true);
@@ -405,6 +382,124 @@ function PlayerPass({ state, me, online, code }: { state: GameState; me: string;
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Teams, on the player's own phone. Start a team (you're its captain) or ask to join one; the captain
+ * accepts or declines. Locked once the throwing starts (then it just shows your team).
+ */
+function TeamCard({ state, me, send }: { state: GameState; me: string; send: (m: object) => void }) {
+  const [name, setName] = useState("");
+  const open = state.phase === "lobby" || state.phase === "rules";
+  const mine = teamOf(state, me);
+  const asked = state.teams.find((t) => t.requests.includes(me));
+  const who = (id: string) => state.players.find((p) => p.id === id)?.name ?? id;
+  const full = (t: Team) => t.members.length >= state.teamMax;
+
+  if (mine) {
+    const captain = mine.captain === me;
+    return (
+      <section className="sheet team-card">
+        <span className="kicker">Your team · {mine.id}</span>
+        <h2 className="display">{mine.name}</h2>
+        <ol className="team-members">
+          {mine.members.map((id) => (
+            <li key={id}>
+              <span>
+                {who(id)}
+                {id === me && " (you)"}
+                {id === mine.captain && <small> captain</small>}
+              </span>
+              {captain && open && id !== me && (
+                <button className="link danger" onClick={() => send({ t: "kickMember", id })}>
+                  Remove
+                </button>
+              )}
+            </li>
+          ))}
+        </ol>
+        {captain && open && mine.requests.length > 0 && (
+          <div className="team-asks">
+            <strong>Want to join your team:</strong>
+            {mine.requests.map((id) => (
+              <div className="team-ask" key={id}>
+                <span>{who(id)}</span>
+                <button className="btn green" disabled={full(mine)} onClick={() => send({ t: "answerRequest", id, ok: true })}>
+                  Accept
+                </button>
+                <button className="btn" onClick={() => send({ t: "answerRequest", id, ok: false })}>
+                  Decline
+                </button>
+              </div>
+            ))}
+            {full(mine) && <p className="hint">Your team is full ({state.teamMax}).</p>}
+          </div>
+        )}
+        <p className="hint">
+          {open
+            ? `You'll be called one after another. Your team scores the average of everyone's throws, so team size doesn't matter.${captain ? " You're the captain: you decide who joins." : ""}`
+            : "Teams are locked now. You'll be called one after another."}
+        </p>
+        {open && (
+          <button className="link" onClick={() => send({ t: "leaveTeam" })}>
+            Leave team
+          </button>
+        )}
+      </section>
+    );
+  }
+
+  if (!open) return null;
+  const others = state.teams;
+  return (
+    <section className="sheet team-card">
+      <span className="kicker">Teams</span>
+      {asked ? (
+        <>
+          <h2 className="display">Asked to join {asked.name}</h2>
+          <p>Waiting for {who(asked.captain)} (the captain) to accept you.</p>
+          <button className="btn" onClick={() => send({ t: "cancelRequest" })}>
+            Cancel request
+          </button>
+        </>
+      ) : (
+        <>
+          <h2 className="display">{state.entries === "teams" ? "Find a team" : "Fly with a team?"}</h2>
+          {state.entries === "teams" && <p className="notice">Teams only today: you need a team to throw.</p>}
+          {others.length > 0 && (
+            <ul className="team-list">
+              {others.map((t) => (
+                <li key={t.id}>
+                  <span>
+                    <b>{t.name}</b>
+                    <small>
+                      {t.members.map(who).join(", ")} · {t.members.length}/{state.teamMax}
+                    </small>
+                  </span>
+                  <button className="btn" disabled={full(t)} onClick={() => send({ t: "requestTeam", team: t.id })}>
+                    {full(t) ? "Full" : "Ask to join"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <form
+            className="team-new"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (name.trim()) send({ t: "createTeam", name: name.trim() });
+            }}
+          >
+            <input maxLength={20} placeholder="New team name" aria-label="New team name" value={name} onChange={(e) => setName(e.target.value)} />
+            <button className="btn red" disabled={!name.trim()}>
+              Start a team
+            </button>
+          </form>
+          <p className="hint">Start one and you're the captain: you accept who joins (up to {state.teamMax}).{state.entries === "both" ? " Or just fly solo: nothing to do." : ""}</p>
+        </>
+      )}
+    </section>
   );
 }
 

@@ -11,13 +11,15 @@ Do this once on the real Wi-Fi (or hotspot), with the projector and 3 phones: on
 ## Joining
 - [ ] Two phones join. Tags pop onto the wall with a sound; IDs are **Pilot-01**, **Pilot-02**. Each phone shows the **Screenshot this** code card once.
 - [ ] A third tab tries the same name: it asks for the rejoin code. The right code gets them back as the same pilot.
-- [ ] A phone taps **We're a team**, types a team name and 3 names: its tag shows **Team-03** and the names. One name only is refused.
+- [ ] Phone A: **Start a team**. Phone B: **Ask to join** it. Phone A buzzes and shows the request: **Accept**. Both passes show the team; the big screen tags show the team name.
+- [ ] Phone C asks too, phone A **Declines**: C is back to the team list.
 
 ## Rules (from the control phone)
 - [ ] Next steps through the rules (page turn + tear sound on the big screen), including **Fly solo or as a team**. Tap a rule to jump. Phones show the same rule.
 
 ## Round 1
 - [ ] Pilot-01's phone: "You're up!" (sound + buzz). Pilot-02's: "You're next".
+- [ ] When a team comes up, its members are called one after another; the big screen shows the team formation.
 - [ ] Type metres → **Save**: landing on the big screen, next pilot called. Top 5 is sorted.
 - [ ] **Undo**: the distance clears and Pilot-01 is called again.
 - [ ] **Skip for now** and **Not here** behave; **Back** brings them in again.
@@ -39,6 +41,9 @@ Do this once on the real Wi-Fi (or hotspot), with the projector and 3 phones: on
 - [ ] New game with **Longest throw** only: steps are Lobby, Rules, Distance, Winners. Podium shows metres.
 - [ ] New game with **Bin throw** only: 5 throws per entry, podium shows "4/5 in".
 - [ ] Control **Menu → Challenges and teams** is greyed out once the first round has started.
+
+## Updates
+- [ ] Laptop corner **Menu → Check for updates** says "Up to date" (or lists new updates).
 
 ## Before the real thing
 - [ ] Create a new game with today's settings: **Longest throw** only, **3 winners**, **Who can enter: Both** (the defaults).

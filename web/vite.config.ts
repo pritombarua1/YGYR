@@ -3,7 +3,11 @@ import react from "@vitejs/plugin-react";
 
 // /api (including WebSockets) goes to the Worker on port 8787.
 // `vite preview` reuses this proxy, which is how start.bat serves the event.
-const proxy = { "/api": { target: `http://127.0.0.1:${process.env.API_PORT ?? 8787}`, ws: true } };
+// /updater goes to the updater that start.bat runs (scripts/start.mjs): the app's Update button.
+const proxy = {
+  "/api": { target: `http://127.0.0.1:${process.env.API_PORT ?? 8787}`, ws: true },
+  "/updater": { target: `http://127.0.0.1:${process.env.UPDATER_PORT ?? 8790}` },
+};
 // Lets the free Cloudflare quick tunnel (https://xxxx.trycloudflare.com) reach the server.
 const allowedHosts = [".trycloudflare.com"];
 

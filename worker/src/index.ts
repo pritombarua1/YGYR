@@ -13,21 +13,32 @@ type Phase = "lobby" | "rules" | "distance" | "bin" | "winners";
 const PHASES: Phase[] = ["lobby", "rules", "distance", "bin", "winners"];
 type Round = "distance" | "bin";
 const ROUNDS: Round[] = ["distance", "bin"];
-// Who can enter: solo pilots, teams, or both. A team is one entry: one plane, one turn, scored like anyone else.
+// Who can enter: solo pilots, teams, or both. Everyone joins as themselves; a player can then start a team
+// (they become its captain) or ask to join one, and the captain accepts or declines. Team members are
+// called one after another, and a team scores the average of its members (so team size doesn't matter).
 type Entries = "solo" | "teams" | "both";
 const ENTRIES: Entries[] = ["solo", "teams", "both"];
 const MIN_TEAM = 2;
 const MAX_TEAM = 6;
+const TEAM_ACTIONS = ["createTeam", "requestTeam", "cancelRequest", "answerRequest", "kickMember", "leaveTeam"];
 
 interface Player {
   id: string; // Pilot-01
   token: string; // secret kept on the player's phone
   code?: string; // short rejoin code, shown on their pass, for joining back from another phone/browser
-  name: string; // the team's name, for a team
-  team?: string[] | null; // member names when this entry is a team (null/absent = solo pilot)
+  name: string;
   distance: number | null; // metres
   bins: number | null; // 0 to binThrows, null = not thrown yet
   tiebreak?: number | null; // throw-off metres, only used to split an exact tie
+}
+
+interface Team {
+  id: string; // Team-01
+  name: string;
+  captain: string; // player id: the one who started it, approves requests
+  members: string[]; // player ids, captain first, in the order they joined (= throwing order)
+  requests: string[]; // player ids asking to join
+  tiebreak?: number | null; // throw-off metres for the team, only used to split an exact tie
 }
 
 interface GameData {
@@ -44,7 +55,9 @@ interface GameData {
   away?: Record<Round, string[]>; // "not here" this round: left out of the calling queue
   trash?: Player | null; // last removed player, so Remove can be undone
   seq: number;
+  teamSeq?: number;
   players: Player[];
+  teams?: Team[];
   createdAt: number;
 }
 
@@ -146,7 +159,9 @@ export class Game extends DurableObject<Env> {
       reveal: 0,
       away: { distance: [], bin: [] },
       seq: 0,
+      teamSeq: 0,
       players: [],
+      teams: [],
       createdAt: Date.now(),
     };
     await this.ctx.storage.put("game", this.game);
@@ -176,6 +191,8 @@ export class Game extends DurableObject<Env> {
     g.rounds ??= OLD_GAME.rounds;
     g.entries ??= OLD_GAME.entries;
     g.teamMax ??= OLD_GAME.teamMax;
+    g.teams ??= [];
+    g.teamSeq ??= 0;
     const tag = ws.deserializeAttachment() as Tag;
 
     if (msg.t === "hello") {
@@ -201,8 +218,7 @@ export class Game extends DurableObject<Env> {
     if (msg.t === "join") {
       if (tag.role === "player") return;
       const name = cleanName(msg.name);
-      const asTeam = Array.isArray(msg.team);
-      if (!name) return this.error(ws, asTeam ? "Your team name needs 1 to 20 characters." : "Your name needs 1 to 20 characters.");
+      if (!name) return this.error(ws, "Your name needs 1 to 20 characters.");
       const existing = g.players.find((o) => o.name.toLowerCase() === name.toLowerCase());
       if (existing) {
         // Same person on a new phone or browser: their rejoin code lets them back in as themselves.
@@ -219,20 +235,12 @@ export class Game extends DurableObject<Env> {
             : `"${name}" is already on board. If that's you, enter your rejoin code. If not, add an initial.`,
         });
       }
-      let team: string[] | null = null;
-      if (asTeam) {
-        if (g.entries === "solo") return this.error(ws, "This event is individuals only. Join with your own name.");
-        team = this.cleanTeam(msg.team);
-        if (team.length < MIN_TEAM) return this.error(ws, `A team needs at least ${MIN_TEAM} people. Flying alone? Join as just you.`);
-        if (team.length > g.teamMax!) return this.error(ws, `Teams can have up to ${g.teamMax} people.`);
-      } else if (g.entries === "teams") return this.error(ws, "This event is teams only. Join with a team name and your team's names.");
       g.seq++;
       const player: Player = {
-        id: `${team ? "Team" : "Pilot"}-${String(g.seq).padStart(2, "0")}`,
+        id: `Pilot-${String(g.seq).padStart(2, "0")}`,
         token: crypto.randomUUID(),
         code: newCode(),
         name,
-        team,
         distance: null,
         bins: null,
       };
@@ -240,6 +248,61 @@ export class Game extends DurableObject<Env> {
       if (!g.up) this.callNext(null); // a late joiner gets called if the queue was empty
       ws.serializeAttachment({ role: "player", playerId: player.id } satisfies Tag);
       this.send(ws, { t: "you", id: player.id, token: player.token, code: player.code });
+      return this.commit();
+    }
+
+    // Teams, from a player's own phone. Allowed until the first round starts (the host can always fix teams).
+    if (tag.role === "player" && TEAM_ACTIONS.includes(msg.t)) {
+      const me = g.players.find((o) => o.id === tag.playerId);
+      if (!me) return;
+      if (g.entries === "solo") return this.error(ws, "This event is individuals only.");
+      if (g.phase !== "lobby" && g.phase !== "rules") return this.error(ws, "Teams are locked now that the throwing has started. Ask the host.");
+      const mine = this.teamOf(me.id);
+      switch (msg.t) {
+        case "createTeam": {
+          const name = cleanName(msg.name);
+          if (!name) return this.error(ws, "Your team name needs 1 to 20 characters.");
+          if (mine) return this.error(ws, `You're already in ${mine.name}. Leave it first.`);
+          if (g.teams!.some((t) => t.name.toLowerCase() === name.toLowerCase())) return this.error(ws, `There's already a team called "${name}".`);
+          this.dropRequests(me.id);
+          g.teamSeq!++;
+          g.teams!.push({ id: `Team-${String(g.teamSeq).padStart(2, "0")}`, name, captain: me.id, members: [me.id], requests: [] });
+          break;
+        }
+        case "requestTeam": {
+          const t = g.teams!.find((t) => t.id === msg.team);
+          if (!t) return this.error(ws, "That team doesn't exist any more.");
+          if (mine) return this.error(ws, `You're already in ${mine.name}. Leave it first.`);
+          if (t.members.length >= g.teamMax!) return this.error(ws, `${t.name} is full (${g.teamMax} people).`);
+          this.dropRequests(me.id); // one request at a time
+          t.requests.push(me.id);
+          break;
+        }
+        case "cancelRequest":
+          this.dropRequests(me.id);
+          break;
+        case "answerRequest": {
+          // only the captain decides who joins
+          const t = g.teams!.find((t) => t.captain === me.id);
+          if (!t || !t.requests.includes(msg.id)) return;
+          t.requests = t.requests.filter((id) => id !== msg.id);
+          if (!msg.ok) break;
+          if (this.teamOf(msg.id)) return this.error(ws, "They've joined another team already.");
+          if (t.members.length >= g.teamMax!) return this.error(ws, `Your team is full (${g.teamMax} people).`);
+          this.dropRequests(msg.id);
+          t.members.push(msg.id);
+          break;
+        }
+        case "kickMember": {
+          const t = g.teams!.find((t) => t.captain === me.id);
+          if (!t || msg.id === me.id) return;
+          t.members = t.members.filter((id) => id !== msg.id);
+          break;
+        }
+        case "leaveTeam":
+          if (mine) this.leave(mine, me.id);
+          break;
+      }
       return this.commit();
     }
 
@@ -283,14 +346,42 @@ export class Game extends DurableObject<Env> {
           for (const o of g.players) if (o.bins !== null) o.bins = Math.min(o.bins, max);
         }
         break;
-      case "members": {
-        // fix a team's member names (an empty list makes it a solo entry)
+      case "setTeam": {
+        // host moves a player into a team (no approval needed), or out of one (team: null)
         if (!p) return;
-        const team = this.cleanTeam(msg.team);
-        if (team.length === 1) return this.error(ws, `A team needs at least ${MIN_TEAM} people. Clear them all to make it a solo entry.`);
-        p.team = team.length ? team : null;
+        const from = this.teamOf(p.id);
+        const to = msg.team ? g.teams!.find((t) => t.id === msg.team) : null;
+        if (msg.team && !to) return;
+        if (from === to) break;
+        if (to && to.members.length >= g.teamMax!) return this.error(ws, `${to.name} is full (${g.teamMax} people).`);
+        if (from) this.leave(from, p.id);
+        this.dropRequests(p.id);
+        to?.members.push(p.id);
         break;
       }
+      case "newTeam": {
+        // host starts a team for a player (they become captain)
+        if (!p) return;
+        const name = cleanName(msg.name);
+        if (!name || g.teams!.some((t) => t.name.toLowerCase() === name.toLowerCase())) return this.error(ws, "That team name is empty or already taken.");
+        const from = this.teamOf(p.id);
+        if (from) this.leave(from, p.id);
+        this.dropRequests(p.id);
+        g.teamSeq!++;
+        g.teams!.push({ id: `Team-${String(g.teamSeq).padStart(2, "0")}`, name, captain: p.id, members: [p.id], requests: [] });
+        break;
+      }
+      case "renameTeam": {
+        const t = g.teams!.find((t) => t.id === msg.team);
+        const name = cleanName(msg.name);
+        if (!t) return;
+        if (!name || g.teams!.some((o) => o !== t && o.name.toLowerCase() === name.toLowerCase())) return this.error(ws, "That team name is empty or already taken.");
+        t.name = name;
+        break;
+      }
+      case "deleteTeam": // everyone in it flies solo again
+        g.teams = g.teams!.filter((t) => t.id !== msg.team);
+        break;
       case "call": // host picks who throws now
         if (!p) return;
         if (isRound(g.phase)) g.away[g.phase] = g.away[g.phase].filter((id) => id !== p.id); // called = here
@@ -311,11 +402,12 @@ export class Game extends DurableObject<Env> {
         break;
       }
       case "tiebreak": {
-        // throw-off distance for splitting a tie (null clears it)
-        if (!p) return;
+        // throw-off distance for splitting a tie (null clears it). id = a solo pilot or a team
+        const who = p ?? g.teams!.find((t) => t.id === msg.id);
+        if (!who) return;
         const m = msg.m === null ? null : Number(msg.m);
         if (m !== null && !(m > 0 && m <= 60)) return this.error(ws, "Throw-off distance should be between 0 and 60 m.");
-        p.tiebreak = m === null ? null : Math.round(m * 100) / 100;
+        who.tiebreak = m === null ? null : Math.round(m * 100) / 100;
         break;
       }
       case "setBins": // exact value, from Edit and Undo
@@ -360,6 +452,8 @@ export class Game extends DurableObject<Env> {
         if (g.up === p.id) this.callNext(p.id);
         g.players = g.players.filter((o) => o !== p);
         if (g.up === p.id) g.up = null;
+        { const t = this.teamOf(p.id); if (t) this.leave(t, p.id); }
+        this.dropRequests(p.id);
         g.trash = p; // kept so it can be undone
         for (const s of this.ctx.getWebSockets()) {
           if ((s.deserializeAttachment() as Tag).playerId === p.id) {
@@ -377,7 +471,7 @@ export class Game extends DurableObject<Env> {
             s.serializeAttachment({ role: "viewer" } satisfies Tag);
           }
         }
-        Object.assign(g, { phase: "lobby", reveal: 0, ruleStep: 0, up: null, away: { distance: [], bin: [] }, trash: null, seq: 0, players: [] });
+        Object.assign(g, { phase: "lobby", reveal: 0, ruleStep: 0, up: null, away: { distance: [], bin: [] }, trash: null, seq: 0, teamSeq: 0, players: [], teams: [] });
         break;
       }
       case "restore": {
@@ -407,14 +501,42 @@ export class Game extends DurableObject<Env> {
     if (tag.role === "host" && tag.kind === "control" && this.game) this.broadcast(ws); // big screen sees the phone left
   }
 
-  /** Member names: tidied, no blanks, no repeats, at most MAX_TEAM. */
-  private cleanTeam(raw: unknown) {
-    const out: string[] = [];
-    for (const n of Array.isArray(raw) ? raw : []) {
-      const c = cleanName(n);
-      if (c && !out.some((o) => o.toLowerCase() === c.toLowerCase())) out.push(c);
+  private teamOf(playerId: string) {
+    return this.game!.teams!.find((t) => t.members.includes(playerId)) ?? null;
+  }
+
+  private dropRequests(playerId: string) {
+    for (const t of this.game!.teams!) t.requests = t.requests.filter((id) => id !== playerId);
+  }
+
+  /** Takes a player out of a team. A captain who leaves hands over to the next member; an empty team is removed. */
+  private leave(t: Team, playerId: string) {
+    const g = this.game!;
+    t.members = t.members.filter((id) => id !== playerId);
+    if (!t.members.length) g.teams = g.teams!.filter((o) => o !== t);
+    else if (t.captain === playerId) t.captain = t.members[0];
+  }
+
+  /**
+   * Who throws, in order: join order, except that a team's members are called one after another
+   * (in team formation) when the first of them comes up. Teams-only events leave solo pilots out.
+   */
+  private throwOrder() {
+    const g = this.game!;
+    const useTeams = g.entries !== "solo";
+    const byId = new Map(g.players.map((p) => [p.id, p]));
+    const out: Player[] = [];
+    const seen = new Set<string>();
+    for (const p of g.players) {
+      if (seen.has(p.id)) continue;
+      const t = useTeams ? this.teamOf(p.id) : null;
+      if (!t && g.entries === "teams") continue;
+      for (const id of t ? t.members : [p.id]) {
+        const m = byId.get(id);
+        if (m && !seen.has(id)) (seen.add(id), out.push(m));
+      }
     }
-    return out.slice(0, MAX_TEAM);
+    return out;
   }
 
   private nameTaken(name: string, except?: Player) {
@@ -431,10 +553,11 @@ export class Game extends DurableObject<Env> {
     if (!isRound(g.phase)) return void (g.up = null);
     const away = new Set(g.away?.[g.phase] ?? []);
     const todo = (p: Player) => !away.has(p.id) && (g.phase === "bin" ? p.bins === null : p.distance === null);
-    const n = g.players.length;
-    const start = after ? g.players.findIndex((p) => p.id === after) : -1;
+    const order = this.throwOrder();
+    const n = order.length;
+    const start = after ? order.findIndex((p) => p.id === after) : -1;
     for (let k = 1; k <= n; k++) {
-      const p = g.players[(((start + k) % n) + n) % n];
+      const p = order[(((start + k) % n) + n) % n];
       if (todo(p)) return void (g.up = p.id);
     }
     g.up = null;
@@ -468,6 +591,7 @@ export class Game extends DurableObject<Env> {
       canRestore: forHost ? g.trash?.name ?? null : null,
       controllers: this.controllers(closing),
       players: g.players.map(({ token, code, ...rest }) => (forHost ? { ...rest, code } : rest)),
+      teams: g.teams ?? [],
     };
   }
 

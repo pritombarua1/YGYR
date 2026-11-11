@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { store, useGame } from "../api";
-import { ordinal, place, score, scoreText } from "../scoring";
+import { entryFor, ordinal, place, score, scoreText } from "../scoring";
 import { binText, isTeam, members, modeOf } from "../mode";
 import { matches } from "../queue";
 import { EVENT } from "../config";
@@ -31,7 +31,10 @@ export default function Results() {
   );
   const cfg = { rounds: state?.rounds ?? ["distance" as const, "bin" as const] };
   const mode = modeOf(cfg);
-  const scored = useMemo(() => score(state?.players ?? [], cfg), [state?.players, state?.rounds?.join()]);
+  const scored = useMemo(
+    () => (state ? score(state) : []),
+    [state?.players, state?.teams, state?.rounds?.join(), state?.entries],
+  );
   const { shown } = useRevealShown(state?.reveal); // undefined until loaded
   const open = !!state && state.phase === "winners" && shown >= state.winners;
 
@@ -58,7 +61,7 @@ export default function Results() {
     );
 
   const winners = winnersOf(scored, state.winners);
-  const mine = scored.find((s) => s.id === me);
+  const mine = me ? entryFor(scored, me) : undefined;
   const rows = scored.filter((s) => matches(s, query));
 
   return shell(
@@ -82,7 +85,7 @@ export default function Results() {
           {winners.map((w, i) => (
             <motion.li
               key={w.id}
-              className={`w${i + 1} ${w.id === me ? "me" : ""}`}
+              className={`w${i + 1} ${w.id === mine?.id ? "me" : ""}`}
               initial={{ x: -40, opacity: 0, rotate: -2 }}
               animate={{ x: 0, opacity: 1, rotate: 0 }}
               transition={{ delay: 0.15 + i * 0.12, type: "spring", stiffness: 260, damping: 20 }}
@@ -118,7 +121,7 @@ export default function Results() {
           </thead>
           <tbody>
             {rows.map((s) => (
-              <tr key={s.id} className={s.id === me ? "me" : ""}>
+              <tr key={s.id} className={s.id === mine?.id ? "me" : ""}>
                 <td>{s.total > 0 ? place(s) : "–"}</td>
                 <td>
                   {s.name}

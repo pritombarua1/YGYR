@@ -1765,9 +1765,12 @@ a {
   transform: rotate(1.5deg);
 }
 
+/* big enough to scan from a few rows back; white border = quiet zone for phone cameras */
 .corner-qr {
-  width: 5.2em;
-  height: 5.2em;
+  width: 8.6em;
+  height: 8.6em;
+  background: #fff;
+  padding: 0.25em;
 }
 
 .corner-qr svg {
@@ -1783,13 +1786,13 @@ a {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--red);
-  font-size: 0.95em;
+  font-size: 1.15em;
 }
 
 .corner-join strong {
   font-family: var(--num);
   font-weight: 800;
-  font-size: 2em;
+  font-size: 2.4em;
   line-height: 1;
 }
 
@@ -3983,4 +3986,189 @@ textarea {
 
 .crew .link {
   align-self: flex-start;
+}
+
+/* Update panel (corner Menu + control Menu) */
+.update-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  align-items: flex-start;
+}
+
+.update-list {
+  margin: 0 0 0.4em 1.2em;
+  font-size: 0.9em;
+}
+
+/* ---------- teams (join requests) ---------- */
+
+.wall-teams {
+  font-family: var(--num);
+  font-weight: 700;
+  font-size: 1.3em;
+  color: var(--navy);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.tag-team {
+  color: var(--red);
+  font-family: var(--num);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stage-team {
+  font-family: var(--num);
+  font-weight: 800;
+  color: var(--red);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 1.6em;
+  margin: 0;
+}
+
+/* team formation: everyone in the team, in throwing order */
+.formation {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6em;
+  margin: 0.6em 0 0.4em;
+  padding: 0;
+}
+
+.formation li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15em;
+  border: 2px solid var(--line);
+  background: var(--sheet);
+  padding: 0.4em 0.8em;
+  min-width: 6.5em;
+  opacity: 0.75;
+}
+
+.formation li b {
+  font-family: var(--hand);
+  font-weight: 400;
+  font-size: 1.5em;
+  line-height: 1;
+}
+
+.formation li small {
+  font-family: var(--num);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+
+.formation li.done {
+  opacity: 1;
+  border-color: var(--grass);
+}
+
+.formation li.now {
+  opacity: 1;
+  border-color: var(--red);
+  box-shadow: 0 4px 0 var(--red);
+  transform: translateY(-4px) rotate(-1deg);
+}
+
+.formation li.now small {
+  color: var(--red);
+}
+
+.team-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.team-card h2 {
+  font-size: 24px;
+  margin: 0;
+}
+
+.team-members,
+.team-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.team-members li,
+.team-list li,
+.team-ask {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px dashed var(--line);
+  padding-bottom: 6px;
+}
+
+.team-members small {
+  color: var(--red);
+  font-family: var(--num);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.team-list li span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.team-list small {
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.team-asks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #fff6d6;
+  padding: 8px;
+}
+
+.team-ask span {
+  flex: 1;
+  font-weight: 600;
+}
+
+.team-new {
+  display: flex;
+  gap: 8px;
+}
+
+.team-new input {
+  flex: 1;
+  min-width: 0;
+}
+
+.team-admin {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.edit select {
+  font: inherit;
+  padding: 8px;
+  border: 2px solid var(--ink);
+  background: #fff;
 }

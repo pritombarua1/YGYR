@@ -7,12 +7,21 @@ export type Setup = { rounds: Round[]; entries: Entries; teamMax: number };
 
 export interface Player {
   id: string;
-  name: string; // the team's name, for a team
-  team?: string[] | null; // member names when this entry is a team
+  name: string;
   distance: number | null;
   bins: number | null;
   code?: string; // rejoin code: only sent to host screens
   tiebreak?: number | null; // throw-off distance (metres), only used to split a tie
+}
+
+/** Players join on their own, then start a team or ask to join one; the captain approves. */
+export interface Team {
+  id: string; // Team-01
+  name: string;
+  captain: string; // player id
+  members: string[]; // player ids, captain first: also the order they're called in
+  requests: string[]; // player ids waiting for the captain's OK
+  tiebreak?: number | null;
 }
 
 export interface GameState {
@@ -29,6 +38,7 @@ export interface GameState {
   canRestore: string | null; // name of the last removed player (host screens only), for Undo
   controllers: number; // control phones connected right now
   players: Player[];
+  teams: Team[];
 }
 
 /** Host screen URLs: /host/lobby, /host/rules, /host/round1-distance, /host/round2-bin, /host/winner */

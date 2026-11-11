@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import { createGame, store, useGame } from "../api";
 import { score } from "../scoring";
 import { DEFAULT_SETUP, EVENT } from "../config";
-import { isTeam, members, phasesFor, modeOf } from "../mode";
+import { phasesFor, modeOf, teamOf, throwOrder } from "../mode";
 import { SetupPicker, describeSetup } from "../components/SetupPicker";
 import { idNumber } from "../queue";
 import { PHASE_SLUG, phaseFromSlug, type GameState, type Setup } from "../types";
@@ -18,6 +18,7 @@ import { Stage } from "../components/Stage";
 import { Podium } from "../components/Podium";
 import { useDialog } from "../components/Dialog";
 import { useWakeLock } from "../wakelock";
+import { UpdatePanel } from "../components/UpdatePanel";
 
 /*
  * The big screen (projector). It only SHOWS what's happening: everything is run from the
@@ -94,7 +95,7 @@ export default function Host() {
     );
   }
 
-  return <Display state={state} online={online} send={send} toast={toast} onLeave={() => (store.set("pp:host", null), setCreds(null))} />;
+  return <Display state={state} online={online} send={send} toast={toast} password={creds.password} onLeave={() => (store.set("pp:host", null), setCreds(null))} />;
 }
 
 /** Create a new game, or resume one after a restart (PIN + password). */
@@ -183,10 +184,25 @@ function Splash({ onReady, toast, flash }: { onReady: (c: Creds) => void; toast:
   );
 }
 
-function Display({ state, online, send, toast, onLeave }: { state: GameState; online: boolean; send: (m: object) => void; toast: string; onLeave: () => void }) {
+function Display({
+  state,
+  online,
+  send,
+  toast,
+  password,
+  onLeave,
+}: {
+  state: GameState;
+  online: boolean;
+  send: (m: object) => void;
+  toast: string;
+  password: string;
+  onLeave: () => void;
+}) {
+  const [updates, setUpdates] = useState(false);
   const dialog = useDialog();
   useWakeLock(); // the projector laptop must not go to sleep mid-event
-  const scored = useMemo(() => score(state.players, state), [state.players, state.rounds]);
+  const scored = useMemo(() => score(state), [state.players, state.teams, state.rounds, state.entries]);
   const rules = useMemo(() => rulesFor(state), [state.rounds, state.entries, state.teamMax]);
   const { shown, intro, reveal, done } = usePhaseTransition(state.phase);
   const [fullscreen, toggleFullscreen] = useFullscreen();
@@ -302,6 +318,10 @@ function Display({ state, online, send, toast, onLeave }: { state: GameState; on
             <button className="link" onClick={() => window.open(controlUrl, "_blank")}>
               Open the controls on this laptop
             </button>
+            <button className="link" onClick={() => setUpdates((u) => !u)}>
+              Check for updates
+            </button>
+            {updates && <UpdatePanel password={password} />}
             <button className="link" onClick={() => (store.set(setupKey, null), setSetupDone(false), setMenu(false))}>
               Show "connect control phone" again
             </button>
@@ -403,11 +423,17 @@ function Lobby({ state }: { state: GameState }) {
           <span className="count">
             <CountUp value={state.players.length} />
           </span>
+          {state.teams.length > 0 && state.entries !== "solo" && (
+            <span className="wall-teams">
+              {state.teams.length} team{state.teams.length > 1 ? "s" : ""}
+            </span>
+          )}
         </header>
         {state.players.length === 0 && <p className="hand empty big">Names land here as people join…</p>}
         <ul className="tags">
           <AnimatePresence>
-            {state.players.map((p) => (
+            {/* team-mates pinned up next to each other */}
+            {[...new Set([...throwOrder(state), ...state.players])].map((p) => (
               <motion.li
                 key={p.id}
                 layout
@@ -419,7 +445,7 @@ function Lobby({ state }: { state: GameState }) {
               >
                 <span className="tag-id">{p.id}</span>
                 <span className="tag-name hand">{p.name}</span>
-                {isTeam(p) && <span className="tag-team">{members(p)}</span>}
+                {teamOf(state, p.id) && <span className="tag-team">{teamOf(state, p.id)!.name}</span>}
               </motion.li>
             ))}
           </AnimatePresence>

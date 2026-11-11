@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { store, useGame } from "../api";
 import { ordinal, score, scoreText } from "../scoring";
-import { binText, binThrows, finished, isTeam, members, modeOf, PHASE_LABEL } from "../mode";
+import { binText, binThrows, finished, modeOf, PHASE_LABEL, teamOf } from "../mode";
 import { SetupPicker, describeSetup } from "../components/SetupPicker";
 import { callOrder, hasThrown, isAway, matches, roundStatus } from "../queue";
 import { backStep, nextStep, type Step } from "../flow";
-import type { GameState, Player } from "../types";
+import type { GameState, Player, Team } from "../types";
 import { useDialog } from "../components/Dialog";
 import { useWakeLock } from "../wakelock";
 import { Dots, Search } from "../components/Inputs";
@@ -13,6 +13,7 @@ import { rulesFor, withWinners } from "../components/RuleSlides";
 import { Leaderboard } from "../components/Leaderboard";
 import { EditPlayer, type Fix } from "../components/EditPlayer";
 import { ReadmeSheet } from "../components/Readme";
+import { UpdatePanel } from "../components/UpdatePanel";
 import { podiumTies, winnersOf } from "../components/Podium";
 
 /*
@@ -111,7 +112,7 @@ export default function Control() {
     );
   }
 
-  return <ControlApp state={state} online={online} send={send} toast={toast} flash={flash} onLogout={() => logout()} />;
+  return <ControlApp state={state} online={online} send={send} toast={toast} flash={flash} password={creds.password} onLogout={() => logout()} />;
 }
 
 const describe = (m: any, p: Player) => {
@@ -135,6 +136,7 @@ function ControlApp({
   send,
   toast,
   flash,
+  password,
   onLogout,
 }: {
   state: GameState;
@@ -142,11 +144,12 @@ function ControlApp({
   send: Send;
   toast: string;
   flash: (m: string) => void;
+  password: string;
   onLogout: () => void;
 }) {
   const dialog = useDialog();
   useWakeLock(); // a locked phone drops its connection, so keep this one awake
-  const scored = useMemo(() => score(state.players, state), [state.players, state.rounds]);
+  const scored = useMemo(() => score(state), [state.players, state.teams, state.rounds, state.entries]);
   const [menu, setMenu] = useState(false);
   const [guide, setGuide] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
@@ -179,7 +182,7 @@ function ControlApp({
   };
   const remove = async (p: Player) => {
     const ok = await dialog.confirm(`Remove ${p.name}?`, {
-      body: `${p.id} comes off the board and ${isTeam(p) ? "the team loses its" : "loses their"} scores. You can undo this straight after.`,
+      body: `${p.id} comes off the board and loses their scores${teamOf(state, p.id) ? " (and leaves their team)" : ""}. You can undo this straight after.`,
       okLabel: "Remove",
       danger: true,
     });
@@ -189,14 +192,16 @@ function ControlApp({
     setEditing(null);
   };
   const applyFix = (p: Player, fix: Fix) => {
-    const sameTeam = (fix.team ?? []).join("|") === (p.team ?? []).join("|");
+    const was = teamOf(state, p.id)?.id ?? null;
+    const moved = !!fix.newTeam || fix.team !== was;
     remember(p, `Edited ${p.name}`, [
       ...(fix.name !== p.name ? [{ t: "rename", id: p.id, name: p.name }] : []),
-      ...(!sameTeam ? [{ t: "members", id: p.id, team: p.team ?? [] }] : []),
+      ...(moved ? [{ t: "setTeam", id: p.id, team: was }] : []),
       { t: "tiebreak", id: p.id, m: p.tiebreak ?? null },
     ]);
     if (fix.name !== p.name) send({ t: "rename", id: p.id, name: fix.name });
-    if (!sameTeam) send({ t: "members", id: p.id, team: fix.team ?? [] });
+    if (fix.newTeam) send({ t: "newTeam", id: p.id, name: fix.newTeam });
+    else if (moved) send({ t: "setTeam", id: p.id, team: fix.team });
     if (fix.distance !== p.distance) send({ t: "distance", id: p.id, m: fix.distance });
     if (fix.bins !== p.bins) send({ t: "setBins", id: p.id, n: fix.bins });
     if (fix.tiebreak !== (p.tiebreak ?? null)) send({ t: "tiebreak", id: p.id, m: fix.tiebreak });
@@ -235,6 +240,7 @@ function ControlApp({
   const phaseLabel = PHASE_LABEL[state.phase];
   const rules = rulesFor(state);
   const editingPlayer = state.players.find((p) => p.id === editing);
+  const editingTeam = state.teams.find((t) => t.id === editing);
 
   return (
     <div className="phone control">
@@ -256,7 +262,12 @@ function ControlApp({
 
       <main className="phone-main control-main">
         {state.phase === "lobby" && <LobbyPanel state={state} onEdit={setEditing} />}
-        {state.phase === "rules" && <RulesPanel state={state} send={send} />}
+        {state.phase === "rules" && (
+          <>
+            <RulesPanel state={state} send={send} />
+            <TeamsPanel state={state} onEdit={setEditing} />
+          </>
+        )}
         {(state.phase === "distance" || state.phase === "bin") && (
           <RoundPanel state={state} act={act} send={send} onEdit={setEditing} onNext={() => go(next)} nextLabel={next?.label ?? "Next"} />
         )}
@@ -297,14 +308,119 @@ function ControlApp({
           onClose={() => setMenu(false)}
           onGuide={() => (setMenu(false), setGuide(true))}
           onLogout={onLogout}
+          password={password}
         />
       )}
       {guide && <ReadmeSheet onClose={() => setGuide(false)} />}
       {editingPlayer && (
         <EditPlayer p={editingPlayer} cfg={state} onSave={(fix) => applyFix(editingPlayer, fix)} onClose={() => setEditing(null)} onRemove={() => remove(editingPlayer)} />
       )}
+      {editingTeam && <TeamEdit t={editingTeam} state={state} send={send} onEdit={setEditing} onClose={() => setEditing(null)} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
+  );
+}
+
+/** Host view of one team: rename, see members (tap to fix one), throw-off, break the team up. */
+function TeamEdit({ t, state, send, onEdit, onClose }: { t: Team; state: GameState; send: Send; onEdit: (id: string) => void; onClose: () => void }) {
+  const dialog = useDialog();
+  const [name, setName] = useState(t.name);
+  const [tb, setTb] = useState(t.tiebreak?.toString() ?? "");
+  const who = (id: string) => state.players.find((p) => p.id === id);
+  return (
+    <div className="dialog-back" onClick={onClose}>
+      <form
+        className="dialog edit sheet taped"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Edit ${t.name}`}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.key === "Escape" && onClose()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim() !== t.name) send({ t: "renameTeam", team: t.id, name: name.trim() });
+          const m = tb.trim() === "" ? null : Number(tb.replace(",", "."));
+          if (m !== (t.tiebreak ?? null)) send({ t: "tiebreak", id: t.id, m });
+          onClose();
+        }}
+      >
+        <h2 className="display">Fix {t.id}</h2>
+        <label htmlFor="team-name">Team name</label>
+        <input id="team-name" maxLength={20} value={name} onChange={(e) => setName(e.target.value)} />
+        <span className="edit-label">
+          Members ({t.members.length}/{state.teamMax}). Tap one to fix their throws or move them.
+        </span>
+        <ul className="team-admin">
+          {t.members.map((id) => (
+            <li key={id}>
+              <button type="button" className="chip" onClick={() => onEdit(id)}>
+                {who(id)?.name ?? id} <small>{id === t.captain ? "captain" : id}</small>
+              </button>
+            </li>
+          ))}
+        </ul>
+        {t.requests.length > 0 && (
+          <p className="hint">
+            Waiting for the captain's OK: {t.requests.map((id) => who(id)?.name ?? id).join(", ")}. (To add someone straight away, Edit them and pick this team.)
+          </p>
+        )}
+        <label htmlFor="team-tb">Throw-off (metres): only to split a tie</label>
+        <input id="team-tb" inputMode="decimal" placeholder="empty = no throw-off" value={tb} onChange={(e) => setTb(e.target.value)} />
+        <div className="dialog-actions">
+          <button
+            type="button"
+            className="link danger edit-remove"
+            onClick={async () => {
+              const ok = await dialog.confirm(`Break up ${t.name}?`, { body: "Everyone in it flies solo again. Their own throws are kept.", okLabel: "Break up", danger: true });
+              if (ok) (send({ t: "deleteTeam", team: t.id }), onClose());
+            }}
+          >
+            Break up team
+          </button>
+          <button type="button" className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn navy">Save</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/** Teams so far (lobby): who's in, who's waiting for the captain. */
+function TeamsPanel({ state, onEdit }: { state: GameState; onEdit: (id: string) => void }) {
+  if (state.entries === "solo") return null;
+  const name = (id: string) => state.players.find((p) => p.id === id)?.name ?? id;
+  const loners = state.players.filter((p) => !teamOf(state, p.id));
+  return (
+    <section className="panel sheet">
+      <h3 className="display">Teams ({state.teams.length})</h3>
+      {state.teams.length === 0 && <p className="hint">Nobody has started a team yet. Players do it on their own phone after joining.</p>}
+      <ul className="pilot-list">
+        {state.teams.map((t) => (
+          <li key={t.id}>
+            <span className="pl-id">{t.id}</span>
+            <span className="pl-name">
+              {t.name}
+              <small className="pl-team">
+                {t.members.map(name).join(", ")}
+                {t.requests.length > 0 && ` · ${t.requests.length} waiting`}
+              </small>
+            </span>
+            <span className="pl-actions">
+              <button className="btn" onClick={() => onEdit(t.id)}>
+                Edit
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {state.entries === "teams" && loners.length > 0 && (
+        <p className="notice">
+          Teams only: {loners.length} {loners.length === 1 ? "player isn't" : "players aren't"} in a team yet and won't be called ({loners.map((p) => p.name).join(", ")}).
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -322,6 +438,7 @@ function LobbyPanel({ state, onEdit }: { state: GameState; onEdit: (id: string) 
         <p className="setup-sum">{describeSetup(state)}</p>
         <p className="hint">Change the challenges or teams in Menu (until the first round starts).</p>
       </section>
+      <TeamsPanel state={state} onEdit={onEdit} />
       <PilotList state={state} onEdit={onEdit} />
     </>
   );
@@ -424,7 +541,7 @@ function RoundPanel({
             <strong className="hand">{up.name}</strong>
             <span>
               {up.id}
-              {isTeam(up) && ` · ${members(up)}`}
+              {teamOf(state, up.id) && ` · for ${teamOf(state, up.id)!.name}`}
             </span>
           </div>
           {isBin ? (
@@ -505,7 +622,7 @@ function PilotList({ state, onEdit, act, send, round }: { state: GameState; onEd
               <span className="pl-id">{p.id}</span>
               <span className="pl-name">
                 {p.name}
-                {isTeam(p) && <small className="pl-team">{members(p)}</small>}
+                {teamOf(state, p.id) && <small className="pl-team">{teamOf(state, p.id)!.name}</small>}
               </span>
               {round && (
                 <span className="pl-status">
@@ -546,7 +663,7 @@ function PilotList({ state, onEdit, act, send, round }: { state: GameState; onEd
 /* ---------- winners ---------- */
 
 function WinnersPanel({ state, send, onEdit }: { state: GameState; send: Send; onEdit: (id: string) => void }) {
-  const scored = useMemo(() => score(state.players, state), [state.players, state.rounds]);
+  const scored = useMemo(() => score(state), [state.players, state.teams, state.rounds, state.entries]);
   const mode = modeOf(state);
   const winners = winnersOf(scored, state.winners);
   const ties = podiumTies(scored, state.winners);
@@ -631,7 +748,7 @@ function WinnersPanel({ state, send, onEdit }: { state: GameState; send: Send; o
   );
 }
 
-function ThrowOff({ p, send }: { p: Player; send: Send }) {
+function ThrowOff({ p, send }: { p: { id: string; name: string; tiebreak?: number | null }; send: Send }) {
   const [v, setV] = useState(p.tiebreak?.toString() ?? "");
   return (
     <form
@@ -659,6 +776,7 @@ function Menu({
   onClose,
   onGuide,
   onLogout,
+  password,
 }: {
   state: GameState;
   send: Send;
@@ -667,6 +785,7 @@ function Menu({
   onClose: () => void;
   onGuide: () => void;
   onLogout: () => void;
+  password: string;
 }) {
   const dialog = useDialog();
   const resultsUrl = `${location.origin}/results?pin=${state.pin}`;
@@ -724,6 +843,9 @@ function Menu({
         <button className="btn" onClick={onGuide}>
           Guide (README)
         </button>
+
+        <h3>Updates</h3>
+        <UpdatePanel password={password} />
 
         <h3>Start over</h3>
         <button

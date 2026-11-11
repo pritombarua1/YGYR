@@ -12,7 +12,7 @@ export function describeSetup(s: Setup) {
       : s.rounds[0] === "distance"
         ? "Longest throw wins"
         : `Bin only: most planes in from ${binThrows(s)} throws`;
-  const who = s.entries === "solo" ? "individuals only" : s.entries === "teams" ? `teams of 2 to ${s.teamMax}` : `solo pilots or teams of up to ${s.teamMax}`;
+  const who = s.entries === "solo" ? "individuals only" : s.entries === "teams" ? `teams of up to ${s.teamMax}` : `solo pilots or teams of up to ${s.teamMax}`;
   return `${what} · ${who}`;
 }
 
@@ -90,7 +90,7 @@ export function SetupPicker({ value, onChange, locked }: { value: Setup; onChang
         </div>
       )}
       <p className="setup-sum">{describeSetup(value)}</p>
-      <p className="hint">A team is one entry: one plane, one turn, scored exactly like a solo pilot.</p>
+      <p className="hint">Players join on their own, then start a team or ask to join one (the captain approves). Team-mates are called one after another; a team scores the average of its members.</p>
     </div>
   );
 }

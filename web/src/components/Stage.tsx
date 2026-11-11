@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { callOrder, roundStatus } from "../queue";
 import type { Scored } from "../scoring";
 import type { GameState } from "../types";
-import { binThrows, isTeam, members, modeOf, PHASE_LABEL, roundKicker } from "../mode";
+import { binText, binThrows, modeOf, PHASE_LABEL, roundKicker, teamOf } from "../mode";
 import { SCORING } from "../config";
 import { play } from "../sound";
 import { LandingStamp, useLanding } from "./CallCard";
@@ -23,6 +23,7 @@ export function Stage({ state, scored }: { state: GameState; scored: Scored[] })
   const nextRound = state.rounds[state.rounds.indexOf(state.phase as "distance" | "bin") + 1];
   const order = callOrder(state);
   const up = order[0];
+  const crew = up ? teamOf(state, up.id) : null;
   const next = order.slice(1, 4);
   const status = roundStatus(state);
   const landing = useLanding(state.players);
@@ -54,8 +55,8 @@ export function Stage({ state, scored }: { state: GameState; scored: Scored[] })
               animate={{ x: 0, opacity: 1, rotate: 0 }}
               transition={{ type: "spring", stiffness: 260, damping: 24 }}
             >
+              {crew && <span className="stage-team">for {crew.name}</span>}
               <span className="stage-name hand">{up.name}</span>
-              {isTeam(up) && <span className="stage-team">{members(up)}</span>}
               <span className="stage-id">{up.id}</span>
             </motion.div>
             {isBin ? (
@@ -66,6 +67,23 @@ export function Stage({ state, scored }: { state: GameState; scored: Scored[] })
               </div>
             ) : (
               <p className="stage-hint">Throw from the line!</p>
+            )}
+            {crew && crew.members.length > 1 && (
+              // team formation: the whole team in throwing order, the one up now highlighted
+              <ol className="formation" aria-label={`${crew.name}, in throwing order`}>
+                {crew.members.map((id) => {
+                  const m = state.players.find((p) => p.id === id);
+                  if (!m) return null;
+                  const done = isBin ? m.bins !== null : m.distance !== null;
+                  return (
+                    <li key={id} className={`${id === up.id ? "now" : ""} ${done ? "done" : ""}`}>
+                      <Plane size={34} />
+                      <b>{m.name}</b>
+                      <small>{id === up.id ? "throwing" : done ? (isBin ? binText(state, m.bins) : `${m.distance?.toFixed(2)} m`) : "waiting"}</small>
+                    </li>
+                  );
+                })}
+              </ol>
             )}
             {next.length > 0 && (
               <p className="stage-next">

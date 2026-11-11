@@ -1,5 +1,5 @@
 import { SCORING } from "./config";
-import type { GameState, Phase, Player, Round } from "./types";
+import type { GameState, Phase, Player, Round, Team } from "./types";
 
 /*
  * What this game is: which challenges run (distance, bin, or both) and who can enter.
@@ -27,10 +27,38 @@ export const roundTitle = (s: Cfg, r: Round) => (s.rounds.length > 1 ? `${roundK
 /** Has this entry thrown in every round that's on? */
 export const finished = (s: Cfg, p: Player) => s.rounds.every((r) => (r === "bin" ? p.bins !== null : p.distance !== null));
 
-export const isTeam = (p: Pick<Player, "team">) => !!p.team?.length;
-export const members = (p: Pick<Player, "team">) => (p.team ?? []).join(", ");
-/** "Pilot" or "Team", for labels. */
-export const kind = (p: Pick<Player, "team">) => (isTeam(p) ? "Team" : "Pilot");
+/* ---------- teams ---------- */
+
+type TeamCfg = Pick<GameState, "teams" | "entries">;
+
+/** The team a player throws for (none when the event is individuals only). */
+export const teamOf = (s: TeamCfg, playerId: string): Team | null =>
+  s.entries === "solo" ? null : ((s.teams ?? []).find((t) => t.members.includes(playerId)) ?? null);
+
+/** A scored entry is a team when it has members. */
+export const isTeam = (e: { members?: unknown[] }) => !!e.members;
+export const members = (e: { members?: { name: string }[] }) => (e.members ?? []).map((m) => m.name).join(", ");
+
+/**
+ * Who throws, in order (the server calls people in exactly this order): join order, except that a
+ * team's members are called one after another, in team formation, when the first of them comes up.
+ * Teams-only events leave out players who aren't in a team.
+ */
+export function throwOrder(s: Pick<GameState, "players" | "teams" | "entries">): Player[] {
+  const byId = new Map(s.players.map((p) => [p.id, p]));
+  const out: Player[] = [];
+  const seen = new Set<string>();
+  for (const p of s.players) {
+    if (seen.has(p.id)) continue;
+    const t = teamOf(s, p.id);
+    if (!t && s.entries === "teams") continue;
+    for (const id of t ? t.members : [p.id]) {
+      const m = byId.get(id);
+      if (m && !seen.has(id)) (seen.add(id), out.push(m));
+    }
+  }
+  return out;
+}
 
 export const metres = (m: number | null | undefined) => (m ? `${m.toFixed(2)} m` : "–");
 export const binText = (s: Cfg, bins: number | null) => (bins === null ? "–" : `${bins}/${binThrows(s)}`);
