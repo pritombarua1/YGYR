@@ -48,7 +48,8 @@ Do this once on the real Wi-Fi (or hotspot), with the projector and 3 phones: on
 - [ ] Winners list on the control phone: one person per place, with their team name, and "Prizes to hand out: 3".
 
 ## Secret scores and recycling
-- [ ] During a round the big screen says **Scores are secret** and phones show "?" for rank; the control phone's Menu → Standings still shows everything.
+- [ ] During a round, a throw that beats the leader climbs smoothly to the top with a **NEW LEADER!** stamp; the others slide down.
+- [ ] (Optional) Menu → Scoreboard → **Secret**: the big screen says **Scores are secret** and phones show "?" for rank.
 - [ ] After the reveal: recycling banner on the big screen, recycling note on the phones.
 
 ## Updates

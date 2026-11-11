@@ -64,7 +64,7 @@ interface GameData {
   rounds?: Round[]; // which challenges run, in order (at least one). Older games: both
   entries?: Entries;
   teamMax?: number; // most people in one team
-  liveBoard?: boolean; // true = standings visible during the rounds; default: secret until the winners reveal
+  liveBoard?: boolean; // standings visible during the rounds (default); false = secret until the winners reveal
   reveal: number; // how many of those places have been revealed so far
   ruleStep?: number; // which rule slide is showing
   up?: string | null; // player currently called to throw
@@ -761,7 +761,7 @@ export class Game extends DurableObject<Env> {
   /** Secret scores: until the winners stage, phones never receive anyone else's results. */
   private secret() {
     const g = this.game!;
-    return !g.liveBoard && g.phase !== "winners";
+    return g.liveBoard === false && g.phase !== "winners";
   }
 
   /**
@@ -773,7 +773,7 @@ export class Game extends DurableObject<Env> {
     const g = this.game!;
     const hide = !forHost && this.secret();
     return {
-      liveBoard: !!g.liveBoard,
+      liveBoard: g.liveBoard !== false,
       pin: g.pin,
       phase: g.phase,
       winners: g.winners ?? MIN_WINNERS,

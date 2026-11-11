@@ -40,7 +40,7 @@ export interface GameState {
   rounds: Round[]; // which challenges run, in order (at least one)
   entries: Entries;
   teamMax: number; // most people in one team
-  liveBoard: boolean; // true = standings visible during the rounds; false (default) = secret until the reveal
+  liveBoard: boolean; // true (default) = live standings during the rounds; false = secret until the reveal
   reveal: number; // how many of those have been revealed so far
   ruleStep: number;
   up: string | null; // player called to throw right now

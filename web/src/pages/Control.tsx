@@ -876,14 +876,14 @@ function Menu({
 
         <h3>Scoreboard during the rounds</h3>
         <div className="seg two" role="radiogroup" aria-label="Scoreboard during the rounds">
+          <button type="button" role="radio" aria-checked={state.liveBoard} className={state.liveBoard ? "on" : ""} onClick={() => send({ t: "settings", liveBoard: true })}>
+            Live leaderboard
+          </button>
           <button type="button" role="radio" aria-checked={!state.liveBoard} className={!state.liveBoard ? "on" : ""} onClick={() => send({ t: "settings", liveBoard: false })}>
             Secret (surprise reveal)
           </button>
-          <button type="button" role="radio" aria-checked={state.liveBoard} className={state.liveBoard ? "on" : ""} onClick={() => send({ t: "settings", liveBoard: true })}>
-            Live Top 5
-          </button>
         </div>
-        <p className="hint">Secret: the big screen and phones show no standings until the podium (you still see them here).</p>
+        <p className="hint">Live (default): the big screen re-sorts after every throw. Secret: no standings anywhere until the podium (you still see them here).</p>
 
         <h3>Winners this event</h3>
         <div className="winners-pick">

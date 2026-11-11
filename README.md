@@ -61,13 +61,14 @@ Teams are called **in team formation**: when a team comes up, its members throw 
 
 **Places go to people, not teams.** Everyone is ranked on their **own** throw; a team is who you fly with (called together, shown together), not a merged score. Example: a team captain throws 9.00 m, a solo pilot 8.90 m, the captain's team-mates 7 m. The captain is 1st, the solo pilot 2nd, the team-mates place on their own 7 m throws. If anyone (solo or in any team) throws 9.10 m, they're 1st.
 
-## Secret scores (the surprise reveal)
+## The live leaderboard
 
-By default nobody sees the standings until the podium, like a quiz-show reveal:
-- **Big screen** during the rounds: who's throwing and each landing (everyone sees the tape anyway), but the Top 5 is replaced by "🤫 Scores are secret".
-- **Phones** show only their own throw; rank (and points, with two rounds) read "?" until the reveal. The server doesn't even send other people's results to phones until the winners stage, so peeking isn't possible.
-- **Control phone** still sees the full standings (Menu → Standings).
-- Prefer the old way? Control **Menu → Scoreboard during the rounds → Live Top 5**.
+The big screen's leaderboard re-sorts after every throw, once the "LANDED" moment is over (the throw first, then the shake-up):
+- A climber rises from wherever it was, past everyone, to its new place: a slow start, a rush, then a long slow glide into the spot (no bounce). It shows a **▲** badge with how many places it climbed.
+- Everyone it passes slides down a place (**▼1**). A first throw that goes straight in climbs up from below the last row.
+- A new No. 1 gets a **NEW LEADER!** stamp and a cheer.
+
+Want a surprise ending instead? Control **Menu → Scoreboard during the rounds → Secret**: no standings on the big screen or phones until the podium (phones then receive nobody else's results, so peeking isn't possible). The control phone always sees everything.
 
 ## Recycling
 

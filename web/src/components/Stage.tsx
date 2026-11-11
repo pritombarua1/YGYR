@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { motion } from "motion/react";
 import { callOrder, roundStatus } from "../queue";
 import type { Scored } from "../scoring";
@@ -31,6 +31,10 @@ export function Stage({ state, scored }: { state: GameState; scored: Scored[] })
   const crew = up ? teamOf(state, up.id) : null;
   const next = (landed ? order : order.slice(1)).filter((p) => p.id !== up?.id).slice(0, 3);
   const complete = status.complete && !landed;
+  // The leaderboard waits for the landing moment, then re-sorts: the throw first, then the shake-up.
+  const held = useRef(scored);
+  if (!landed) held.current = scored;
+  const board = landed ? held.current : scored;
   const drops = useBinDrops(state.players);
 
   useEffect(() => {
@@ -110,7 +114,7 @@ export function Stage({ state, scored }: { state: GameState; scored: Scored[] })
       <aside className="stage-side">
         {isBin && <BinDrop drops={drops} points={mode === "both" ? SCORING.binPoints : null} />}
         {state.liveBoard ? (
-          <Leaderboard rows={scored} cfg={state} show={isBin ? "all" : "distance"} limit={5} title="Top 5" />
+          <Leaderboard rows={board} cfg={state} show={isBin ? "all" : "distance"} limit={7} title="Leaderboard" live />
         ) : (
           // Kahoot-style suspense: nobody knows who's leading until the podium
           <div className="board secret-board sheet taped">

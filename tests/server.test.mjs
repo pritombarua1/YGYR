@@ -313,7 +313,9 @@ async function secretScores() {
   const pin = await newGame({ rounds: ["distance"], entries: "both", teamMax: 3 });
   const host = await control(pin);
   const P = await players(pin, ["Ann", "Ben"]);
-  await check(() => host.state.liveBoard === false, "secret by default");
+  await check(() => host.state.liveBoard === true, "live scores by default");
+  host.send({ t: "settings", liveBoard: false });
+  await check(() => host.state.liveBoard === false, "host switches to secret scores");
   host.send({ t: "phase", phase: "distance", from: "lobby" });
   await check(() => host.state.up === P.Ann.id, "round starts");
   host.send({ t: "distance", id: P.Ann.id, m: 8.4 });

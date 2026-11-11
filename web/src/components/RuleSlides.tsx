@@ -462,13 +462,14 @@ const STEP = 2.2; // seconds per fold step
 const STEPS = 6;
 const FOLD_T = STEP * STEPS + 3.6; // + the throw
 
+// Each caption must fit beside the step number (about 25 characters at this size).
 const FOLD_CAPTIONS = [
   "Fold in half, open it out",
   "Top corners to the centre",
-  "Fold the top down to the dot",
-  "Corners to the centre again",
-  "Fold the tip up to lock it",
-  "Fold in half, wings down",
+  "Top down to the dot",
+  "Corners to the centre",
+  "Tip up to lock it",
+  "In half, wings down",
   "Ready to fly!",
 ];
 const NUMERALS = ["1", "2", "3", "4", "5", "6", "Go"];
